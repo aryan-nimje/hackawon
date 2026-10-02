@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-disaster-bg text-slate-100 antialiased;
+}
+
+.leaflet-container {
+  background: #1e293b;
+  font-family: inherit;
+}
