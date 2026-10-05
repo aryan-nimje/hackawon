@@ -82,24 +82,7 @@ button{font:inherit;cursor:pointer;min-height:48px}
   <p class="hint">🔒 Your location is shared only with emergency response coordinators.</p>
 </section>
 
-<section><h2><b>2</b>What do you need?</h2>
-  <fieldset style="border:0;padding:0;margin:0"><legend class="sr" style="position:absolute;left:-9999px">Type of help</legend>
-  <div class="opts g3" id="needs"></div></fieldset><div class="err" id="e-need_type" role="alert"></div>
-  <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Urgency</legend>
-  <div class="opts g4" id="urg"></div></fieldset><div class="err" id="e-urgency" role="alert"></div>
-</section>
-
-<section><h2><b>3</b>Who needs extra care?</h2>
-  <div class="opts g2" id="vuln"></div>
-  <div class="lbl" id="pl">How many people need help?</div>
-  <div class="stepper" role="group" aria-labelledby="pl">
-    <button type="button" id="minus" aria-label="Decrease number of people">−</button>
-    <output id="pc" aria-live="polite">1</output>
-    <button type="button" id="plus" aria-label="Increase number of people">+</button>
-  </div>
-</section>
-
-<section><h2><b>4</b>What happened?</h2>
+<section><h2><b>2</b>Add a photo</h2>
   <div class="lbl" style="margin-top:0">📷 Take or upload a photo <span class="hint">Optional</span></div>
   <div class="photo">
     <div class="photo-actions">
@@ -112,6 +95,26 @@ button{font:inherit;cursor:pointer;min-height:48px}
         <button type="button" class="btn ghost" id="rm">Remove photo</button><button type="button" class="btn ghost hidden" id="retry">Try again</button></div></div>
     <div id="imgmsg" role="status" aria-live="polite"></div>
   </div>
+</section>
+
+<section><h2><b>3</b>What do you need?</h2>
+  <fieldset style="border:0;padding:0;margin:0"><legend class="sr" style="position:absolute;left:-9999px">Type of help</legend>
+  <div class="opts g3" id="needs"></div></fieldset><div class="err" id="e-need_type" role="alert"></div>
+  <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Urgency</legend>
+  <div class="opts g4" id="urg"></div></fieldset><div class="err" id="e-urgency" role="alert"></div>
+</section>
+
+<section><h2><b>4</b>Who needs extra care?</h2>
+  <div class="opts g2" id="vuln"></div>
+  <div class="lbl" id="pl">How many people need help?</div>
+  <div class="stepper" role="group" aria-labelledby="pl">
+    <button type="button" id="minus" aria-label="Decrease number of people">−</button>
+    <output id="pc" aria-live="polite">1</output>
+    <button type="button" id="plus" aria-label="Increase number of people">+</button>
+  </div>
+</section>
+
+<section><h2><b>5</b>What happened?</h2>
   <div class="or">or describe it yourself — you can also edit or add to the generated text</div>
   <label for="text" class="sr" style="position:absolute;left:-9999px">What happened?</label>
   <textarea id="text" maxlength="500" aria-describedby="cnt" placeholder="Describe what is happening, how serious it is, and anything responders should know..."></textarea>
@@ -137,10 +140,10 @@ const $=id=>document.getElementById(id);
 const NEEDS=[['rescue','🚨 Rescue'],['medical','🩺 Medical Help'],['supplies','📦 Supplies']];
 const URG=[['low','Low'],['moderate','Moderate'],['high','High'],['critical','Critical']];
 const VULN=[['children','Children'],['elderly','Elderly'],['limited_mobility','Disability / limited mobility'],['pregnant','Pregnant'],['medical_needs','Medical needs (insulin, oxygen, etc.)']];
-const opt=(type,name,v,label,cls='')=>`<label class="opt ${cls}"><input type="${type}" name="${name}" value="${v}"><span class="${type==='checkbox'?'check':''}">${label}</span></label>`;
-$('needs').innerHTML=NEEDS.map(([v,l])=>opt('radio','need',v,l)).join('');
-$('urg').innerHTML=URG.map(([v,l])=>opt('radio','urg',v,l,v==='critical'?'crit':'')).join('');
-$('vuln').innerHTML=VULN.map(([v,l])=>opt('checkbox','vuln',v,l)).join('');
+const opt=(type,name,v,label,cls='',on=false)=>`<label class="opt ${cls}"><input type="${type}" name="${name}" value="${v}"${on?' checked':''}><span class="${type==='checkbox'?'check':''}">${label}</span></label>`;
+$('needs').innerHTML=NEEDS.map(([v,l])=>opt('radio','need',v,l,'',v==='rescue')).join('');
+$('urg').innerHTML=URG.map(([v,l])=>opt('radio','urg',v,l,v==='critical'?'crit':'',v==='high')).join('');
+$('vuln').innerHTML=VULN.map(([v,l])=>opt('checkbox','vuln',v,l,'',v==='elderly')).join('');
 
 let state={lat:null,lng:null,location:''}, token=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2);
 const map=L.map('map').setView([29.7604,-95.3698],11);
