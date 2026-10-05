@@ -46,6 +46,18 @@ button{font:inherit;cursor:pointer;min-height:48px}
 .foot{text-align:center;color:var(--mute);font-size:.9rem;margin-top:10px}
 .done{text-align:center;padding:40px 20px}.done h2{justify-content:center;font-size:1.5rem}.ref{font-family:ui-monospace,monospace;background:var(--sand);padding:6px 10px;border-radius:8px;word-break:break-all;display:inline-block}
 .hidden{display:none}
+.photo{border:1.5px dashed var(--line);border-radius:12px;padding:14px;background:var(--bg)}
+.photo-actions{display:flex;gap:8px;flex-wrap:wrap}
+.photo-actions .btn{flex:1 1 160px;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0;min-height:48px;overflow:hidden}
+.photo-actions .btn:focus-within{outline:3px solid #7fb3b6;outline-offset:2px}
+.photo-actions input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.photo-actions .btn.disabled{opacity:.6;pointer-events:none}
+@media (hover:hover) and (pointer:fine){#camBtn{display:none}}
+.pv{display:flex;gap:12px;align-items:center;margin-top:12px}
+.pv img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#fff}
+.pv .btn{min-height:40px;margin:6px 6px 0 0;padding:0 14px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style></head><body><main>
 <h1>Report an emergency</h1>
 <p class="sub">Tell us what is happening so response coordinators can help.</p>
@@ -88,6 +100,19 @@ button{font:inherit;cursor:pointer;min-height:48px}
 </section>
 
 <section><h2><b>4</b>What happened?</h2>
+  <div class="lbl" style="margin-top:0">📷 Take or upload a photo <span class="hint">Optional</span></div>
+  <div class="photo">
+    <div class="photo-actions">
+      <label class="btn ghost" id="camBtn"><input type="file" id="cam" accept="image/*" capture="environment" aria-label="Take a photo">📷 Take a photo</label>
+      <label class="btn ghost" id="upBtn"><input type="file" id="up" accept="image/*" aria-label="Upload an image">🖼️ Upload an image</label>
+    </div>
+    <p class="hint" style="margin:8px 0 0">The image will be analyzed to automatically describe the situation.</p>
+    <div class="pv hidden" id="pv"><img id="pvimg" alt="Preview of the selected photo">
+      <div><div id="pvst" role="status" aria-live="polite"></div>
+        <button type="button" class="btn ghost" id="rm">Remove photo</button><button type="button" class="btn ghost hidden" id="retry">Try again</button></div></div>
+    <div id="imgmsg" role="status" aria-live="polite"></div>
+  </div>
+  <div class="or">or describe it yourself — you can also edit or add to the generated text</div>
   <label for="text" class="sr" style="position:absolute;left:-9999px">What happened?</label>
   <textarea id="text" maxlength="500" aria-describedby="cnt" placeholder="Describe what is happening, how serious it is, and anything responders should know..."></textarea>
   <div class="count" id="cnt">0 / 500 characters</div><div class="err" id="e-text" role="alert"></div>
@@ -109,7 +134,7 @@ button{font:inherit;cursor:pointer;min-height:48px}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const NEEDS=[['rescue','🚨 Rescue'],['medical','🩺 Medical'],['shelter','🏠 Shelter'],['food_water','💧 Food & Water'],['other','Other']];
+const NEEDS=[['rescue','🚨 Rescue'],['medical','🩺 Medical Help'],['supplies','📦 Supplies']];
 const URG=[['low','Low'],['moderate','Moderate'],['high','High'],['critical','Critical']];
 const VULN=[['children','Children'],['elderly','Elderly'],['limited_mobility','Disability / limited mobility'],['pregnant','Pregnant'],['medical_needs','Medical needs (insulin, oxygen, etc.)']];
 const opt=(type,name,v,label,cls='')=>`<label class="opt ${cls}"><input type="${type}" name="${name}" value="${v}"><span class="${type==='checkbox'?'check':''}">${label}</span></label>`;
@@ -161,7 +186,70 @@ document.querySelectorAll('[name=here]').forEach(r=>r.onchange=()=>{$('herenote'
 
 let n=1;const setN=v=>{n=Math.max(1,Math.min(10000,v));$('pc').textContent=n};
 $('minus').onclick=()=>setN(n-1);$('plus').onclick=()=>setN(n+1);
-$('text').oninput=()=>{const l=$('text').value.length;$('cnt').textContent=l+' / 500 characters';$('cnt').classList.toggle('over',l>=500)};
+const updateCount=()=>{const l=$('text').value.length;$('cnt').textContent=l+' / 500 characters';$('cnt').classList.toggle('over',l>=500)};
+$('text').oninput=updateCount;
+
+/* ---- Photo -> description (analysis runs on our server; the image is never submitted with the report) ---- */
+const MAX_IN=25*1024*1024,MAX_DIM=1280,MAX_OUT=3.5*1024*1024;
+const img={blob:null,url:null,busy:false,ctl:null,seq:0,gen:''};
+const MSG={unsupported:'That file type isn’t supported. Please choose a photo (JPEG, PNG or WebP).',too_large:'That image is too large. Please choose a smaller image.',
+  rate_limited:'Too many photo analyses right now. Please wait a minute, or describe the situation manually.',empty:'We couldn’t get a description from this photo. You can describe the situation manually.'};
+const GENERIC="We couldn't analyze the image. You can describe the situation manually.";
+const fit=(s,n)=>{if(s.length<=n)return s;const c=s.slice(0,n);let e=-1,m;const re=/[.!?](?=\s|$)/g;while((m=re.exec(c)))e=m.index;
+  if(e>=n*.5)return c.slice(0,e+1);const sp=c.slice(0,n-1).lastIndexOf(' ');return(sp>0?c.slice(0,sp):c.slice(0,n-1)).replace(/[ ,;:]+$/,'')+'…'};
+function setBusy(b){img.busy=b;['cam','up'].forEach(i=>$(i).disabled=b);['camBtn','upBtn'].forEach(i=>$(i).classList.toggle('disabled',b))}
+const setStatus=(h)=>{$('pvst').innerHTML=h};
+function viaImg(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
+  i.onload=()=>{URL.revokeObjectURL(u);ok(i)};i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('decode'))};i.src=u})}
+const decode=f=>window.createImageBitmap?createImageBitmap(f).catch(()=>viaImg(f)):viaImg(f);
+async function shrink(f){ // decode -> downscale -> JPEG (also drops EXIF/GPS metadata)
+  const src=await decode(f),w0=src.naturalWidth||src.width,h0=src.naturalHeight||src.height;
+  if(!w0||!h0)throw new Error('decode');
+  const k=Math.min(1,MAX_DIM/Math.max(w0,h0)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w0*k));c.height=Math.max(1,Math.round(h0*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(src,0,0,c.width,c.height);if(src.close)src.close();
+  for(const q of [.82,.65,.5]){const b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b&&b.size<=MAX_OUT)return b}
+  throw new Error('big')}
+function clearImage(){
+  img.seq++;if(img.ctl)img.ctl.abort();img.ctl=null;setBusy(false);
+  if($('text').value===img.gen&&img.gen){$('text').value='';updateCount()} // only drop generated text the citizen hasn't edited
+  img.gen='';img.blob=null;if(img.url)URL.revokeObjectURL(img.url);img.url=null;
+  $('pv').classList.add('hidden');$('pvimg').removeAttribute('src');setStatus('');$('retry').classList.add('hidden');say($('imgmsg'),'')}
+function applyGenerated(t){
+  const ta=$('text'),cur=ta.value;let pre,post='';
+  const i=img.gen?cur.indexOf(img.gen):-1;
+  if(i>=0){pre=cur.slice(0,i);post=cur.slice(i+img.gen.length)}
+  else if(cur.trim()){pre=cur.replace(/\s+$/,'')+'\n'}else pre='';
+  const room=500-pre.length-post.length;
+  if(room<40&&t.length>room){say($('imgmsg'),'Your description is already close to the 500-character limit, so the photo description was not added.');return false}
+  t=fit(t,room);ta.value=pre+t+post;img.gen=t;updateCount();$('e-text').textContent='';return true}
+async function analyze(){
+  if(img.busy||!img.blob)return;
+  const my=++img.seq,ctl=new AbortController();img.ctl=ctl;
+  setBusy(true);say($('imgmsg'),'');$('retry').classList.add('hidden');setStatus('<span class="spin"></span>Analyzing image…');
+  const timer=setTimeout(()=>ctl.abort(),35000);
+  try{
+    const r=await fetch('/api/analyze-image',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:img.blob,signal:ctl.signal});
+    const j=await r.json().catch(()=>({}));
+    if(my!==img.seq)return;
+    if(r.ok&&j.ok&&typeof j.text==='string'&&j.text.trim()){setStatus('');if(applyGenerated(j.text.trim()))say($('imgmsg'),'✓ Description added below. Please review it and add anything responders should know.')}
+    else{setStatus('');say($('imgmsg'),MSG[j.code]||GENERIC,1);if(j.code!=='unsupported'&&j.code!=='too_large')$('retry').classList.remove('hidden')}
+  }catch{
+    if(my!==img.seq)return;
+    setStatus('');say($('imgmsg'),GENERIC,1);$('retry').classList.remove('hidden')
+  }finally{clearTimeout(timer);if(my===img.seq){setBusy(false);img.ctl=null}}
+}
+async function onPick(inp){
+  const f=inp.files&&inp.files[0];inp.value='';if(!f||img.busy)return;
+  say($('imgmsg'),'');
+  if((f.type&&!/^image\//.test(f.type))||/svg/i.test(f.type))return say($('imgmsg'),MSG.unsupported,1);
+  if(f.size>MAX_IN)return say($('imgmsg'),MSG.too_large,1);
+  let b;try{b=await shrink(f)}catch(e){return say($('imgmsg'),e.message==='big'?MSG.too_large:MSG.unsupported,1)}
+  clearImage(); // replacing a photo swaps out its earlier generated text
+  img.blob=b;img.url=URL.createObjectURL(b);$('pvimg').src=img.url;$('pv').classList.remove('hidden');
+  analyze();
+}
+$('cam').onchange=e=>onPick(e.target);$('up').onchange=e=>onPick(e.target);
+$('rm').onclick=clearImage;$('retry').onclick=analyze;
 
 const val=n=>document.querySelector(`[name=${n}]:checked`)?.value;
 function check(){
@@ -169,7 +257,8 @@ function check(){
   if(state.lat==null)e.location='Please choose a location using the button, search, or map.';
   if(!val('need'))e.need_type='Please choose what you need.';
   if(!val('urg'))e.urgency='Please choose an urgency level.';
-  if(!$('text').value.trim())e.text='Please describe what is happening.';
+  if(img.busy)e.text='Please wait for the photo analysis to finish, or remove the photo.';
+  else if(!$('text').value.trim())e.text=img.blob?'We couldn’t get a description from your photo. Please type a short description.':'Please add a photo or describe what is happening.';
   const ph=$('phone').value.trim();
   if(ph&&(!/^\+?[0-9 ()\-.]{7,20}$/.test(ph)))e.phone='Please enter a valid phone number, or leave it blank.';
   return e;
