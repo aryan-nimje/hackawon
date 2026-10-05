@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f7f4ee;
+  --card: #ffffff;
+  --line: #e8e4dc;
+  --ink: #1f2933;
+  --muted: #6b6b6b;
+  --teal: #2b6f73;
+  --teal-tint: #e3eeee;
+  --red: #b3261e;
+  --pink: #fbe9e7;
+  --beige: #f1ece1;
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
+.leaflet-container { font-family: inherit; background: #e9e6df; }

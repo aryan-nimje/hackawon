@@ -18,6 +18,7 @@ from agents.rescue import run_rescue
 from agents.route import run_route
 from agents.verification import run_verification
 from services.events import event_bus
+from services.plan_payload import broadcast_plan
 from services.store import run_store
 from state import (
     ActivityEvent,
@@ -50,6 +51,12 @@ async def _emit(
         run.activity_log.append(event)
         run_store.update_run(run)
     event_bus.publish(event)
+
+
+def _broadcast(state: RunState) -> None:
+    """Push the current run snapshot to /bus/stream as plan.updated (plan is null until the end)."""
+    run_store.update_run(state)
+    broadcast_plan(state)
 
 
 async def _run_agent(
@@ -190,6 +197,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             f"Using {len(state.incidents)} incidents from scenario replay",
             duration_ms=0,
         )
+        _broadcast(state)
     else:
         det, failed = await _run_agent(run_id, "detection", run_detection, state)
         if not failed and det:
@@ -199,6 +207,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             state.agent_outputs["detection"] = det.model_dump()
         elif failed:
             state.incomplete_sections.append("detection")
+        _broadcast(state)
 
     # Verification
     ver, failed = await _run_agent(run_id, "verification", run_verification, state)
@@ -207,6 +216,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
         state.agent_outputs["verification"] = ver.model_dump()
     elif failed:
         state.incomplete_sections.append("verification")
+    _broadcast(state)
 
     # Damage Assessment
     dmg, failed = await _run_agent(run_id, "damage_assessment", run_damage_assessment, state)
@@ -215,6 +225,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
         state.agent_outputs["damage_assessment"] = dmg.model_dump()
     elif failed:
         state.incomplete_sections.append("damage_assessment")
+    _broadcast(state)
 
     # Parallel: Rescue, Medical, Logistics
     await _emit(run_id, "parallel_ops", AgentStatus.RUNNING, "Rescue, Medical, Logistics running in parallel")
@@ -228,6 +239,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             state.agent_outputs["rescue"] = r.model_dump()
         elif f:
             state.incomplete_sections.append("rescue")
+        _broadcast(state)
 
     async def _parallel_medical() -> None:
         m, f = await _run_agent(
@@ -238,6 +250,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             state.agent_outputs["medical"] = m.model_dump()
         elif f:
             state.incomplete_sections.append("medical")
+        _broadcast(state)
 
     async def _parallel_logistics() -> None:
         lg, f = await _run_agent(
@@ -248,6 +261,7 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             state.agent_outputs["logistics"] = lg.model_dump()
         elif f:
             state.incomplete_sections.append("logistics")
+        _broadcast(state)
 
     await asyncio.gather(_parallel_rescue(), _parallel_medical(), _parallel_logistics())
     await _emit(run_id, "parallel_ops", AgentStatus.COMPLETED, "Parallel agents finished")
@@ -272,12 +286,15 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
             lg, f = await _run_agent(run_id, "logistics", run_logistics, state)
             if not f and lg:
                 state.supply_allocations = lg.allocations
+            _broadcast(state)
             rt2, _ = await _run_agent(run_id, "route", run_route, state)
             if rt2:
                 state.routes = rt2.routes
+            _broadcast(state)
             await _emit(run_id, "supervisor", AgentStatus.COMPLETED, "Route revision complete")
     elif route_failed:
         state.incomplete_sections.append("route")
+    _broadcast(state)
 
     # Communication
     comm, comm_failed = await _run_agent(run_id, "communication", run_communication, state)
@@ -286,12 +303,14 @@ async def run_pipeline(state: RunState, report_ids: List[str] | None = None) -> 
         state.agent_outputs["communication"] = comm.model_dump()
     elif comm_failed:
         state.incomplete_sections.append("communication")
+    _broadcast(state)
 
     state.plan = _build_plan(state)
     state.status = RunStatus.COMPLETED
     state.completed_at = datetime.utcnow()
     run_store.update_run(state)
     await _emit(run_id, "supervisor", AgentStatus.COMPLETED, "Response plan draft ready for human review")
+    _broadcast(state)  # first payload with a non-null plan (and the final activity_log entry)
     return state
 
 
@@ -338,5 +357,6 @@ async def start_scenario_replay(
                     run.incidents.append(inc)
                     run_store.upsert_incident(inc)
             run_store.update_run(run)
+        _broadcast(run)
 
     return await run_pipeline(run)

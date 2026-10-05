@@ -59,6 +59,12 @@ export interface HospitalAssignment {
   distance_km: number;
   explanation: string;
   specialty_match: boolean;
+  /** name of the nearer hospital that was full; set when the patient was diverted */
+  diverted_from?: string | null;
+  /** every operational hospital was full, so this is the nearest one as overflow */
+  overflow?: boolean;
+  /** expected length of stay in sim-minutes; the bed stays taken that long */
+  expected_stay_min?: number | null;
 }
 
 export interface SupplyAllocation {
@@ -149,4 +155,86 @@ export interface BlockedZoneFeature {
   type: 'Feature';
   properties: { name: string; reason: string };
   geometry: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+/* ───────── Citizen reports (contract for POST /reports, GET /reports/{token}) ───────── */
+
+export type VulnerableGroup = 'children' | 'elderly' | 'disabled' | 'pregnant' | 'medical_needs';
+export type HelpType = 'rescue' | 'medical' | 'shelter' | 'supplies' | 'other';
+export type ReportStatus = 'received' | 'verifying' | 'prioritized' | 'assigned' | 'resolved';
+
+export interface ReportSubmission {
+  text: string;
+  /** Where help is needed (pin position). */
+  lat: number;
+  lng: number;
+  /** Browser-reported accuracy radius in metres, null if the pin was placed by hand. */
+  accuracy_m: number | null;
+  location_text: string;
+  need_type: HelpType | null;
+  vulnerable: VulnerableGroup[];
+  people_count: number | null;
+  /** false = reporting for someone else; the pin is *their* location. */
+  is_own_location: boolean;
+  /** Reporter's own GPS fix when different from the pin. */
+  reporter_lat: number | null;
+  reporter_lng: number | null;
+  contact: string | null;
+  /** Anti-abuse honeypot; must be empty. */
+  website: string;
+}
+
+export interface ReportReceipt {
+  token: string;
+  status: ReportStatus;
+  created_at: string;
+}
+
+export interface ReportStatusView {
+  token: string;
+  status: ReportStatus;
+  updated_at: string;
+  history: { status: ReportStatus; at: string }[];
+  /** Citizen-safe summary of their own report only. */
+  summary: string;
+  note?: string | null;
+}
+
+/* ───────── Simulation (contract for /sim/*; a local engine implements it until the backend does) ───────── */
+
+export interface SimTeam {
+  id: string;
+  kind: 'rescue' | 'medical' | 'logistics';
+  lat: number;
+  lng: number;
+  status: 'en_route' | 'on_scene' | 'returning' | 'idle';
+  target_id: string;
+  eta_s: number;
+}
+
+export interface SimScore {
+  /** share of junk reports (spam/duplicates/retractions) the system flagged */
+  junk_caught: number;
+  junk_total: number;
+  /** genuine reports wrongly flagged */
+  false_flags: number;
+  genuine_total: number;
+  /** share of truly critical incidents that got a rescue/medical team */
+  critical_served: number;
+  critical_total: number;
+  /** mean sim-seconds from report to team dispatch */
+  avg_response_s: number | null;
+  /** assignments that crossed a flooded road at dispatch time */
+  unsafe_routes: number;
+  hospital_overflow: number;
+  /** incident lifecycle counts (junk and feed items excluded); open = not yet resolved or expired */
+  incidents_open: number;
+  incidents_resolved: number;
+  incidents_expired: number;
+}
+
+export interface SimEvent {
+  at_s: number;
+  kind: 'info' | 'flood' | 'dispatch' | 'arrive' | 'bed' | 'citizen' | 'warn';
+  text: string;
 }

@@ -235,6 +235,11 @@ class ReviewRequest(BaseModel):
     actions: List[ReviewAction]
 
 
+class ReplanRequest(BaseModel):
+    item_id: str = Field(min_length=1, max_length=200)
+    action: Literal["reroute", "hold"]
+
+
 class ScenarioStartRequest(BaseModel):
     replay_speed: float = Field(default=1.0, ge=0.1, le=10.0)
     simulate_failures: List[str] = Field(default_factory=list)

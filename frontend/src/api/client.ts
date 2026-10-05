@@ -8,7 +8,15 @@ import type {
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
@@ -18,7 +26,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    throw new ApiError(res.status, text || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
@@ -56,11 +64,12 @@ export const api = {
   streamUrl: (runId: string) => `${BASE}/runs/${runId}/stream`,
 };
 
+/**
+ * React already escapes text rendered via JSX, so escaping here as well shows
+ * literal "&#039;" to users. This only strips control characters from
+ * untrusted text; never pass the result to dangerouslySetInnerHTML.
+ */
 export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
 }
