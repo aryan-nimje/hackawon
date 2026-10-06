@@ -260,19 +260,19 @@ function check(){
   if(!val('urg'))e.urgency='Please choose an urgency level.';
   if(img.busy)e.text='Please wait for the photo analysis to finish, or remove the photo.';
   else if(!$('text').value.trim())e.text=img.blob?'We couldn’t get a description from your photo. Please type a short description.':'Please add a photo or describe what is happening.';
-  const ph=($('phone')?.value||'').trim();
+  const ph=$('phone').value.trim();
   if(ph&&(!/^\+?[0-9 ()\-.]{7,20}$/.test(ph)))e.phone='Please enter a valid phone number, or leave it blank.';
   return e;
 }
 $('f').onsubmit=async ev=>{
   ev.preventDefault();if($('sub').disabled)return;
-  ['location','need_type','urgency','text','phone'].forEach(k=>{const el=$('e-'+k);if(el)el.textContent=''});
+  ['location','need_type','urgency','text','phone'].forEach(k=>$('e-'+k).textContent='');
   $('formerr').classList.add('hidden');
   const e=check();
-  if(Object.keys(e).length){for(const k in e){const el=$('e-'+k);if(el)el.textContent=e[k]}
+  if(Object.keys(e).length){for(const k in e)$('e-'+k).textContent=e[k];
     const first=document.querySelector('.err:not(:empty)');first?.scrollIntoView({behavior:'smooth',block:'center'});return}
   const metadata={people_count:n,vulnerable:[...document.querySelectorAll('[name=vuln]:checked')].map(c=>c.value),here:val('here')!=='no'};
-  const phv=($('phone')?.value||'').trim();if(phv)metadata.phone=phv;
+  if($('phone').value.trim())metadata.phone=$('phone').value.trim();
   const body={text:$('text').value.trim(),location:state.location,lat:state.lat,lng:state.lng,need_type:val('need'),urgency:val('urg'),metadata,client_token:token};
   $('sub').disabled=true;$('sub').textContent='Submitting…';
   try{
