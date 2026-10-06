@@ -10,7 +10,7 @@ import { BRIDGES } from '../data/bridges';
 import { countIncidentStatuses, isJunkIncident } from '../shared/incidents';
 import type {
   AffectedRegion, Disruption, ExecutionItem, HazardType, HospitalAssignment, Incident, IncidentStatus, IncidentStatusEntry, PlanItem,
-  HospitalStatus, ReplanResult, RouteInfo, SimBusEvent, SimEvent, SimScore, WorldState, WorldVehicle,
+  HospitalStatus, ReplanResult, RouteInfo, SimBusEvent, SimEvent, SimScore, Transfer, WorldState, WorldVehicle,
 } from '../shared/types';
 import type { Preset } from './presets';
 import { HospitalLedger, SIM_MIN, sampleAcuity, sampleStayS, type Hazard, type LedgerState } from './hospitals';
@@ -41,6 +41,8 @@ const CENSUS_LOG_EVERY_S = 10 * SIM_MIN;
 /** A hospital is "filling up" from this share of beds occupied. */
 const FILLING_AT = 0.85;
 const BLOCK_RADIUS_KM = 0.16;
+/** A route that starts inside a blockage's radius is "leaving" it only if it never gets this much closer (mirrors the Route Agent). */
+const LEAVE_MARGIN_KM = 0.05;
 const URGENCY_ORDER: Incident['urgency'][] = ['low', 'medium', 'high', 'critical'];
 
 interface Region {
@@ -60,6 +62,27 @@ interface TeamRt {
   noDetour: boolean;
   /** earliest sim time an automatic re-route may be requested again (after a failed request) */
   nextAutoAt: number;
+}
+
+/** A diverted patient driving from the full hospital to the one that took them. Gone the moment it arrives. */
+interface TransferRt {
+  id: string; incidentId: string; fromName: string; toName: string;
+  geom: number[][]; pts: number[][]; elapsed: number; travelS: number;
+  /** false until the road route is known (or the request has failed) */
+  ready: boolean; createdT: number;
+}
+
+/** Direction of travel (degrees clockwise from north) at fraction f along a path. */
+export function headingAt(pts: number[][], f: number): number | undefined {
+  if (pts.length < 2) return undefined;
+  const i = Math.floor(Math.min(1, Math.max(0, f)) * (pts.length - 1));
+  let a = pts[Math.max(0, Math.min(i, pts.length - 3))];
+  let b = pts[Math.min(pts.length - 1, Math.max(i, 0) + 3)];
+  if (a[0] === b[0] && a[1] === b[1]) { a = pts[0]; b = pts[pts.length - 1]; }
+  const dLat = b[0] - a[0];
+  const dLng = (b[1] - a[1]) * Math.cos((a[0] * Math.PI) / 180);
+  if (dLat === 0 && dLng === 0) return undefined;
+  return Math.round(((Math.atan2(dLng, dLat) * 180) / Math.PI + 360) % 360);
 }
 
 export interface WorldInputs {
@@ -172,6 +195,8 @@ export class SimWorld {
   private counter = 0;
   private undoStack: UndoState[] = [];
   private rerouteQueue: string[] = [];
+  private transfers: TransferRt[] = [];
+  private transferQueue: { id: string; from: [number, number]; to: [number, number] }[] = [];
   /** lifecycle of every tracked incident (absent = open, never seen as terminal) */
   private incState = new Map<string, IncidentStatusEntry>();
   /** target id (incident or zone) -> sim time at which on-scene work finishes; set when the first team arrives */
@@ -207,6 +232,39 @@ export class SimWorld {
     return o;
   }
   /** Plan item ids whose vehicle wants a new route from the Route Agent (POST /plan/{run}/replan). */
+  /** Hospital-to-hospital transfers that still need a road route from the backend. */
+  drainTransferRequests() {
+    const q = this.transferQueue;
+    this.transferQueue = [];
+    return q;
+  }
+
+  /** The road route for a transfer arrived: the ambulance starts driving along it. */
+  setTransferRoute(id: string, geometry: number[][], durationMin: number) {
+    const tr = this.transfers.find((x) => x.id === id);
+    if (!tr || tr.ready) return;
+    if (geometry.length >= 2) { tr.geom = geometry; tr.pts = densify(geometry); }
+    tr.travelS = Math.max(15, durationMin * 60 * TRAVEL_COMPRESSION);
+    tr.ready = true;
+  }
+
+  /** No road route available: drive the straight line instead. */
+  transferRouteFailed(id: string) {
+    const tr = this.transfers.find((x) => x.id === id);
+    if (!tr || tr.ready) return;
+    const a = tr.geom[0];
+    const b = tr.geom[tr.geom.length - 1];
+    tr.travelS = Math.max(15, (haversineKm(a[0], a[1], b[0], b[1]) / 40) * 3600 * TRAVEL_COMPRESSION);
+    tr.ready = true;
+  }
+
+  private startTransfer(incidentId: string, from: { id: string; name: string; lat: number; lng: number }, to: { id: string; name: string; lat: number; lng: number }) {
+    const id = this.nextId('transfer');
+    const geom = [[from.lat, from.lng], [to.lat, to.lng]];
+    this.transfers.push({ id, incidentId, fromName: from.name, toName: to.name, geom, pts: densify(geom), elapsed: 0, travelS: 60, ready: false, createdT: this.t });
+    this.transferQueue.push({ id, from: [from.lat, from.lng], to: [to.lat, to.lng] });
+  }
+
   drainRerouteRequests(): string[] {
     const q = this.rerouteQueue;
     this.rerouteQueue = [];
@@ -266,7 +324,7 @@ export class SimWorld {
     this.pushUndo();
     const id = this.nextId(`region`);
     this.regions.push({
-      id, type, name: `${type[0].toUpperCase()}${type.slice(1)} zone (SIMULATED)`, reason: 'Injected by simulation',
+      id, type, name: `${type[0].toUpperCase()}${type.slice(1)} zone`, reason: 'Reported hazard',
       baseRing: circleRing(lat, lng, Math.max(80, radiusM)), center: [lat, lng], severity, growing, startedAt: this.t, base: false,
     });
     this.log('flood', `${type} region added at ${lat.toFixed(4)}, ${lng.toFixed(4)}${growing ? ' (growing)' : ''}.`);
@@ -282,16 +340,15 @@ export class SimWorld {
     this.emit({ kind: 'fault_cleared', text: `${r.name} removed.` });
   }
 
-  blockRoad(lat: number, lng: number, state: 'blocked' | 'flooded') {
+  blockRoad(lat: number, lng: number) {
     this.pushUndo();
     const d: Disruption = {
       id: this.nextId('road'), kind: 'road_blocked', latlng: [lat, lng],
-      severity: state === 'flooded' ? 'high' : 'critical', status: 'active', created_at: new Date().toISOString(),
-      note: state === 'flooded' ? 'Road flooded' : 'Road blocked',
+      severity: 'critical', status: 'active', created_at: new Date().toISOString(), note: 'Road blocked',
     };
     this.disruptions.push(d);
-    this.log('warn', `Road ${state} near ${lat.toFixed(4)}, ${lng.toFixed(4)}.`);
-    this.emit({ kind: 'route_blocked', text: `Road ${state} near ${lat.toFixed(4)}, ${lng.toFixed(4)}.`, disruption_id: d.id });
+    this.log('warn', `Road blocked near ${lat.toFixed(4)}, ${lng.toFixed(4)}.`);
+    this.emit({ kind: 'route_blocked', text: `Road blocked near ${lat.toFixed(4)}, ${lng.toFixed(4)}.`, disruption_id: d.id });
   }
 
   toggleBridge(bridgeId: string) {
@@ -392,7 +449,7 @@ export class SimWorld {
       this.simIncidents.push({ id: this.nextId('sim'), ...i, source: 'sim', timestamp: new Date().toISOString(), raw_metadata: { preset: p.id }, verification: null });
     }
     for (const r of p.roads) {
-      this.disruptions.push({ id: this.nextId('road'), kind: 'road_blocked', latlng: r.latlng, severity: r.state === 'flooded' ? 'high' : 'critical', status: 'active', created_at: new Date().toISOString(), note: `Road ${r.state}` });
+      this.disruptions.push({ id: this.nextId('road'), kind: 'road_blocked', latlng: r.latlng, severity: 'critical', status: 'active', created_at: new Date().toISOString(), note: 'Road blocked' });
     }
     for (const b of p.bridges) {
       const br = BRIDGES.find((x) => x.id === b);
@@ -553,7 +610,15 @@ export class SimWorld {
       if (d.kind !== 'road_blocked' && d.kind !== 'bridge_collapsed') continue;
       const refs: [number, number][] = d.geometry ?? (d.latlng ? [d.latlng] : []);
       // A hazard only blocks a route whose endpoints are both outside it: going into one, or leaving one, is allowed.
-      if (ends.some((e) => refs.some((r) => haversineKm(e[0], e[1], r[0], r[1]) <= BLOCK_RADIUS_KM))) continue;
+      const nearest = (p: [number, number]) => refs.reduce((m, r) => Math.min(m, haversineKm(p[0], p[1], r[0], r[1])), Infinity);
+      if (nearest(ends[1]) <= BLOCK_RADIUS_KM) continue; // going into it
+      const startD = nearest(ends[0]);
+      if (startD <= BLOCK_RADIUS_KM) {
+        // A team stopped AT the blockage is inside its radius but may only LEAVE it (turn round). A route that drives on
+        // towards the blockage is still blocked, otherwise the new route would send it straight back through.
+        const closest = tm.pts.reduce((m, p) => Math.min(m, nearest(p)), Infinity);
+        if (closest >= startD - LEAVE_MARGIN_KM) continue;
+      }
       let hit = false;
       for (let j = start; j < tm.pts.length && !hit; j++) {
         for (const r of refs) {
@@ -691,11 +756,11 @@ export class SimWorld {
             this.autoBlocks.add(key);
             const d: Disruption = {
               id: this.nextId('road'), kind: 'road_blocked', latlng: [hit[0], hit[1]], severity: 'high', status: 'active',
-              created_at: new Date().toISOString(), note: `Road flooded by ${reg.name}`,
+              created_at: new Date().toISOString(), note: `Road blocked by ${reg.name}`,
             };
             this.disruptions.push(d);
-            this.log('flood', `Rising water cut a road under ${tm.id}'s route.`);
-            this.emit({ kind: 'region_expanded', text: `${reg.name} expanded and flooded a road on ${tm.id}'s route.`, disruption_id: d.id });
+            this.log('flood', `Rising water blocked a road under ${tm.id}'s route.`);
+            this.emit({ kind: 'region_expanded', text: `${reg.name} expanded and blocked a road on ${tm.id}'s route.`, disruption_id: d.id });
           }
         }
       }
@@ -767,6 +832,15 @@ export class SimWorld {
     this.teams = this.teams.filter((tm) => !done.includes(tm));
     this.doneTeams += done.length;
 
+    // 4a. diverted patients drive to the hospital that took them; the path disappears on arrival
+    for (const tr of this.transfers) {
+      if (!tr.ready) { if (this.t - tr.createdT > 60) this.transferRouteFailed(tr.id); continue; }
+      tr.elapsed += dt;
+    }
+    const arrivedTransfers = this.transfers.filter((tr) => tr.ready && tr.elapsed >= tr.travelS);
+    for (const tr of arrivedTransfers) this.log('arrive', `Patient from ${tr.incidentId} arrived at ${tr.toName}.`);
+    if (arrivedTransfers.length) this.transfers = this.transfers.filter((tr) => !arrivedTransfers.includes(tr));
+
     // 4b. incident lifecycle: assigned / resolved / expired (after dispatch and arrival, so a team assigned this tick is never expired)
     this.updateIncidentLifecycle(allIncidents);
 
@@ -836,6 +910,8 @@ export class SimWorld {
       this.startResolution(incidentId);
       this.diverted += 1;
       this.ledger.noteDiverted(a.hospital_id, alt.id);
+      const origin = this.hospital(a.hospital_id);
+      if (origin) this.startTransfer(incidentId, origin, alt);
       const km = haversineKm(from[0], from[1], alt.lat, alt.lng);
       this.log('bed', `${a.hospital_name} is ${why}: patient from ${incidentId} diverted to ${alt.name} (${km.toFixed(1)} km, ${stayText}), ${this.ledger.free(alt.id)} beds left`);
       this.emit({ kind: 'patient_diverted', text: `Patient from ${incidentId} diverted from ${a.hospital_name} (${why}) to ${alt.name}, ${km.toFixed(1)} km away.`, incident_id: incidentId });
@@ -951,11 +1027,21 @@ export class SimWorld {
       return {
         id: tm.id, kind: tm.kind, lat, lng, status: tm.arrivedAt == null ? 'en_route' : 'on_scene', target_id: tm.targetId,
         eta_s: tm.arrivedAt == null ? Math.max(0, Math.round(tm.travelS * (1 - f))) : 0,
+        heading: headingAt(tm.pts, f),
         failed: tm.halted === 'manual' ? (tm.delayUntil ? 'delayed' : 'stopped') : null,
         needs_replan: tm.halted === 'route' || tm.halted === 'site',
         // the simulator plays the role of the vehicle's GPS: every position it publishes is a real report
         position_source: 'reported', last_update_ts: Date.now(),
       } as WorldVehicle;
+    });
+    const transfers: Transfer[] = this.transfers.filter((tr) => tr.ready).map((tr) => {
+      const f = Math.min(1, tr.elapsed / tr.travelS);
+      const [lat, lng] = pointAlong(tr.pts, f);
+      const i = Math.floor(f * (tr.pts.length - 1));
+      return {
+        id: tr.id, incident_id: tr.incidentId, from_name: tr.fromName, to_name: tr.toName, lat, lng,
+        path: [[lat, lng], ...tr.pts.slice(i + 1)], eta_s: Math.max(0, Math.round(tr.travelS - tr.elapsed)),
+      };
     });
     const regions: AffectedRegion[] = this.regions.map((r) => {
       const ring = this.ring(r);
@@ -964,7 +1050,7 @@ export class SimWorld {
     });
     return {
       t: this.t, sim_time_s: this.t, ts: Date.now(),
-      vehicles, disruptions: structuredClone(this.disruptions), affected_regions: regions,
+      vehicles, transfers, disruptions: structuredClone(this.disruptions), affected_regions: regions,
       sim_incidents: structuredClone(this.simIncidents), execution: this.execution(), events: [...this.events],
       beds: this.freeBeds(), hospital_status: { ...this.hospitalStatus },
       hospital_load: this.ledger.census(this.t, this.hospitalStatus), admitted_incident_ids: this.ledger.admittedIncidentIds(),

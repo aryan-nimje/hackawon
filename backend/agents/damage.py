@@ -104,3 +104,47 @@ async def run_damage_assessment(state: RunState) -> DamageAssessmentOutput:
         )
     zones.sort(key=lambda z: list(Severity).index(z.severity), reverse=True)
     return DamageAssessmentOutput(zones=zones)
+
+
+async def update_zones(state: RunState, new_ids: Set[str]) -> DamageAssessmentOutput:
+    """Fold new incidents into the existing zones without renumbering them.
+
+    An incident within CLUSTER_KM of a zone's centre joins that zone (centre and severity are
+    recomputed); otherwise it starts a new zone with the next free id. Existing zone ids never
+    change, so supply allocations and plan items that refer to them stay valid.
+    """
+    cred = _credibility_map(state.verifications)
+    by_id = {i.id: i for i in state.incidents}
+    zones = [z.model_copy(deep=True) for z in state.zones]
+    next_n = max((int(z.id.rsplit("-", 1)[-1]) for z in zones if z.id.rsplit("-", 1)[-1].isdigit()), default=0) + 1
+
+    for nid in sorted(new_ids):
+        inc = by_id.get(nid)
+        if inc is None or cred.get(nid, 0.5) < 0.35 or any(nid in z.incident_ids for z in zones):
+            continue
+        near = [z for z in zones if _haversine_km(inc.lat, inc.lng, z.center_lat, z.center_lng) <= CLUSTER_KM]
+        if near:
+            zone = min(near, key=lambda z: _haversine_km(inc.lat, inc.lng, z.center_lat, z.center_lng))
+            zone.incident_ids.append(nid)
+            members = [by_id[i] for i in zone.incident_ids if i in by_id]
+            zone.center_lat = sum(m.lat for m in members) / len(members)
+            zone.center_lng = sum(m.lng for m in members) / len(members)
+            zone.severity = _severity_for_cluster(members, cred)
+            zone.summary = await _summarize_zone(zone.name, zone.severity, len(members))
+        else:
+            name = f"Zone-{next_n} ({inc.location[:30]})"
+            severity = _severity_for_cluster([inc], cred)
+            zones.append(
+                Zone(
+                    id=f"zone-{next_n:03d}",
+                    name=name,
+                    center_lat=inc.lat,
+                    center_lng=inc.lng,
+                    severity=severity,
+                    incident_ids=[nid],
+                    summary=await _summarize_zone(name, severity, 1),
+                )
+            )
+            next_n += 1
+    zones.sort(key=lambda z: list(Severity).index(z.severity), reverse=True)
+    return DamageAssessmentOutput(zones=zones)

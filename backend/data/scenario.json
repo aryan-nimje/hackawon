@@ -1,16 +1,95 @@
 {
-  "city": "Houston, TX (SIMULATED)",
-  "description": "Urban flood scenario replay for demo purposes",
-  "center": {"lat": 29.7604, "lng": -95.3698},
+  "city": "Pune, Maharashtra (SIMULATED)",
+  "description": "Urban flood scenario replay for demo purposes (Mula-Mutha river overflow)",
+  "center": {
+    "lat": 18.5204,
+    "lng": 73.8567
+  },
   "replay_events": [
-    {"offset_seconds": 0, "report_ids": ["r001", "r002", "r003"]},
-    {"offset_seconds": 15, "report_ids": ["r004", "r005", "r006", "r007"]},
-    {"offset_seconds": 30, "report_ids": ["r008", "r009", "r010", "r011", "r012"]},
-    {"offset_seconds": 45, "report_ids": ["r013", "r014", "r015", "r016"]},
-    {"offset_seconds": 60, "report_ids": ["r017", "r018", "r019", "r020", "r021"]},
-    {"offset_seconds": 90, "report_ids": ["r022", "r023", "r024", "r025"]},
-    {"offset_seconds": 120, "report_ids": ["r026", "r027", "r028", "r029", "r030"]},
-    {"offset_seconds": 150, "report_ids": ["r031", "r032", "r033", "r034", "r035"]},
-    {"offset_seconds": 180, "report_ids": ["r036", "r037", "r038", "r039", "r040"]}
+    {
+      "offset_seconds": 0,
+      "report_ids": [
+        "r001",
+        "r002",
+        "r003"
+      ]
+    },
+    {
+      "offset_seconds": 15,
+      "report_ids": [
+        "r004",
+        "r005",
+        "r006",
+        "r007"
+      ]
+    },
+    {
+      "offset_seconds": 30,
+      "report_ids": [
+        "r008",
+        "r009",
+        "r010",
+        "r011",
+        "r012"
+      ]
+    },
+    {
+      "offset_seconds": 45,
+      "report_ids": [
+        "r013",
+        "r014",
+        "r015",
+        "r016"
+      ]
+    },
+    {
+      "offset_seconds": 60,
+      "report_ids": [
+        "r017",
+        "r018",
+        "r019",
+        "r020",
+        "r021"
+      ]
+    },
+    {
+      "offset_seconds": 90,
+      "report_ids": [
+        "r022",
+        "r023",
+        "r024",
+        "r025"
+      ]
+    },
+    {
+      "offset_seconds": 120,
+      "report_ids": [
+        "r026",
+        "r027",
+        "r028",
+        "r029",
+        "r030"
+      ]
+    },
+    {
+      "offset_seconds": 150,
+      "report_ids": [
+        "r031",
+        "r032",
+        "r033",
+        "r034",
+        "r035"
+      ]
+    },
+    {
+      "offset_seconds": 180,
+      "report_ids": [
+        "r036",
+        "r037",
+        "r038",
+        "r039",
+        "r040"
+      ]
+    }
   ]
 }

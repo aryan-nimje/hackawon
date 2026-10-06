@@ -1,10 +1,11 @@
-# Disaster Relief frontend: three independent apps
+# Disaster Relief frontend: two apps here (+ a separately hosted citizen app)
 
 | URL | App | Role |
 |---|---|---|
 | `/` | Authority command | Read-only map, live feed, **the only place for decisions** (plan review, re-route approval) |
 | `/sim` | Simulation | Read-write map: starts/pauses/resets the scenario, injects faults |
-| `/report` | Citizen | Report form (owned by a teammate) |
+
+**Citizen report form: not in this repo.** It is a separate, explicitly hosted version (different codebase/deploy). It was removed from here on purpose; the task is still covered, just not by this code. It writes reports straight into the shared PostgreSQL `reports` table; this backend only reads that table (see `backend/services/citizen_db.py`, `citizen_sync.py`) and serves it to the dashboard via `GET /reports` and the `report.new` event. No CORS or API link between the hosted app and this backend is needed.
 
 The apps share **no browser state**. Everything crosses over the network through the backend, so each can run on a different device.
 Authority and Simulation render the same `src/shared/map/WorldMap.tsx` (`mode="readonly"` vs `mode="edit"`).
@@ -76,3 +77,16 @@ asks Nominatim which city it is, loads `GET /layers?city=<name>` (the backend fe
 take a minute) and swaps the layers in place (`loadCity`, `subscribeLayers`, `useCityVersion`). Starting the simulation
 sends `city: <slug>`, so the backend plans for that city, and the city is locked until Reset. **Authority** is read-only: it
 loads whatever city the active run declares (`run.active.city`). A failed load keeps the current city and shows the reason.
+
+## Simulation: incident evidence, reset
+
+- **Incident evidence** is in the incident's map popup in `/sim` (click an incident marker; `IncidentEvidenceActions` in
+  `src/sim/Panels.tsx`): the current credibility (or *pending verification*), **Backs this incident** (News evidence, Official
+  alert, Meteorological evidence), **Contradicts this incident** (All clear / false alarm, Normal relevant conditions) and
+  **Randomise** for that incident. Each button calls `POST /sim/evidence`; the backend builds the evidence and scores it with the
+  normal pipeline. Credibility updates from the live stream.
+- **Authority "Incident stream"** lists live news (GDELT) and simulated evidence (labelled backs / contradicts); the scripted
+  "[SIMULATED NEWS]" items only show while a simulation is running. **External alerts** lists all active signals.
+- **Reset simulation** is always available and calls `POST /sim/reset` first; the local world is only cleared once the backend
+  succeeded, and nothing is published afterwards. Runs are started with `simulation: true` so the backend can tell them from real ones.
+- The simulator's blocking rule mirrors the Route Agent: a team stopped at a blockage may only leave it.

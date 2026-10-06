@@ -1,0 +1,572 @@
+{
+ "city": {
+  "name": "Pune, Maharashtra (Simulated)",
+  "slug": "pune",
+  "center": [
+   18.5204,
+   73.8567
+  ],
+  "zoom": 12,
+  "bbox": [
+   18.4,
+   73.7,
+   18.72,
+   74.0
+  ]
+ },
+ "source": "seed",
+ "hospitals": [
+  {
+   "id": "h001",
+   "name": "Sassoon General Hospital",
+   "lat": 18.5285,
+   "lng": 73.8745,
+   "beds": 45,
+   "beds_available": 45,
+   "beds_source": "generated",
+   "specialties": [
+    "trauma",
+    "surgery",
+    "burn"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h002",
+   "name": "Ruby Hall Clinic",
+   "lat": 18.5322,
+   "lng": 73.8778,
+   "beds": 32,
+   "beds_available": 32,
+   "beds_source": "generated",
+   "specialties": [
+    "trauma",
+    "cardiology",
+    "neurology"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h003",
+   "name": "KEM Hospital",
+   "lat": 18.5192,
+   "lng": 73.8705,
+   "beds": 28,
+   "beds_available": 28,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "emergency",
+    "pediatrics"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h004",
+   "name": "Deenanath Mangeshkar Hospital",
+   "lat": 18.5018,
+   "lng": 73.8326,
+   "beds": 30,
+   "beds_available": 30,
+   "beds_source": "generated",
+   "specialties": [
+    "cardiology",
+    "pediatrics",
+    "neonatal"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h005",
+   "name": "Sahyadri Hospital, Deccan",
+   "lat": 18.5143,
+   "lng": 73.8398,
+   "beds": 22,
+   "beds_available": 22,
+   "beds_source": "generated",
+   "specialties": [
+    "neurology",
+    "orthopedics",
+    "emergency"
+   ],
+   "status": "operational",
+   "limited": true
+  },
+  {
+   "id": "h006",
+   "name": "Aditya Birla Memorial Hospital",
+   "lat": 18.6253,
+   "lng": 73.7825,
+   "beds": 20,
+   "beds_available": 20,
+   "beds_source": "generated",
+   "specialties": [
+    "trauma",
+    "burn",
+    "emergency"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h007",
+   "name": "Noble Hospital, Hadapsar",
+   "lat": 18.504,
+   "lng": 73.9265,
+   "beds": 18,
+   "beds_available": 18,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "emergency"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h008",
+   "name": "Poona Hospital & Research Centre",
+   "lat": 18.5113,
+   "lng": 73.8472,
+   "beds": 24,
+   "beds_available": 24,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "emergency",
+    "surgery"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h009",
+   "name": "Inlaks & Budhrani Hospital",
+   "lat": 18.5362,
+   "lng": 73.8947,
+   "beds": 16,
+   "beds_available": 16,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "cardiology"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h010",
+   "name": "Jupiter Hospital, Baner",
+   "lat": 18.559,
+   "lng": 73.7794,
+   "beds": 26,
+   "beds_available": 26,
+   "beds_source": "generated",
+   "specialties": [
+    "trauma",
+    "cardiology",
+    "pediatrics"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h011",
+   "name": "Manipal Hospital, Kharadi",
+   "lat": 18.5515,
+   "lng": 73.9393,
+   "beds": 24,
+   "beds_available": 24,
+   "beds_source": "generated",
+   "specialties": [
+    "trauma",
+    "emergency",
+    "neurology"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h012",
+   "name": "Bharati Hospital, Katraj",
+   "lat": 18.4575,
+   "lng": 73.8517,
+   "beds": 34,
+   "beds_available": 34,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "emergency",
+    "pediatrics",
+    "neonatal"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h013",
+   "name": "Aundh District Hospital",
+   "lat": 18.5601,
+   "lng": 73.8077,
+   "beds": 20,
+   "beds_available": 20,
+   "beds_source": "generated",
+   "specialties": [
+    "general",
+    "emergency"
+   ],
+   "status": "operational"
+  },
+  {
+   "id": "h014",
+   "name": "Jehangir Hospital",
+   "lat": 18.53,
+   "lng": 73.8747,
+   "beds": 20,
+   "beds_available": 20,
+   "beds_source": "generated",
+   "specialties": [
+    "cardiology",
+    "oncology",
+    "emergency"
+   ],
+   "status": "operational"
+  }
+ ],
+ "depots": [
+  {
+   "id": "w001",
+   "name": "PMC Relief Warehouse, Swargate (simulated)",
+   "lat": 18.5018,
+   "lng": 73.8636,
+   "type": "warehouse",
+   "stock": {
+    "food_meals": 5000,
+    "water_bottles": 8000,
+    "blankets": 1200,
+    "vehicles": 12
+   }
+  },
+  {
+   "id": "w002",
+   "name": "Red Cross Supply Depot, Shivajinagar (simulated)",
+   "lat": 18.5308,
+   "lng": 73.8475,
+   "type": "ngo",
+   "stock": {
+    "food_meals": 2000,
+    "water_bottles": 4000,
+    "medicine_kits": 500,
+    "vehicles": 8
+   }
+  },
+  {
+   "id": "w003",
+   "name": "NDRF Staging Area, Pimpri-Chinchwad (simulated)",
+   "lat": 18.6279,
+   "lng": 73.8009,
+   "type": "government",
+   "stock": {
+    "food_meals": 10000,
+    "water_bottles": 15000,
+    "medicine_kits": 800,
+    "vehicles": 25,
+    "boats": 6
+   }
+  },
+  {
+   "id": "w004",
+   "name": "Community Relief Centre, Kothrud (simulated)",
+   "lat": 18.5074,
+   "lng": 73.8077,
+   "type": "community",
+   "stock": {
+    "food_meals": 800,
+    "water_bottles": 1500,
+    "blankets": 300,
+    "vehicles": 3
+   }
+  }
+ ],
+ "flood_zones": [
+  {
+   "id": "flood-1",
+   "name": "Mutha Riverbank, Deccan (SIMULATED)",
+   "reason": "River overtopping",
+   "ring": [
+    [
+     18.51,
+     73.843
+    ],
+    [
+     18.51,
+     73.85
+    ],
+    [
+     18.516,
+     73.85
+    ],
+    [
+     18.516,
+     73.843
+    ],
+    [
+     18.51,
+     73.843
+    ]
+   ]
+  },
+  {
+   "id": "flood-2",
+   "name": "Mula-Mutha Confluence, Sangamwadi (SIMULATED)",
+   "reason": "Deep water on low-lying roads",
+   "ring": [
+    [
+     18.528,
+     73.865
+    ],
+    [
+     18.528,
+     73.873
+    ],
+    [
+     18.534,
+     73.873
+    ],
+    [
+     18.534,
+     73.865
+    ],
+    [
+     18.528,
+     73.865
+    ]
+   ]
+  },
+  {
+   "id": "flood-3",
+   "name": "Sinhagad Road Low-Lying Block (SIMULATED)",
+   "reason": "Street flooding 3ft+",
+   "ring": [
+    [
+     18.48,
+     73.818
+    ],
+    [
+     18.48,
+     73.826
+    ],
+    [
+     18.486,
+     73.826
+    ],
+    [
+     18.486,
+     73.818
+    ],
+    [
+     18.48,
+     73.818
+    ]
+   ]
+  },
+  {
+   "id": "flood-4",
+   "name": "Ekta Nagar / Vitthalwadi, Kothrud (SIMULATED)",
+   "reason": "Riverside colony flooded",
+   "ring": [
+    [
+     18.494,
+     73.828
+    ],
+    [
+     18.494,
+     73.834
+    ],
+    [
+     18.499,
+     73.834
+    ],
+    [
+     18.499,
+     73.828
+    ],
+    [
+     18.494,
+     73.828
+    ]
+   ]
+  }
+ ],
+ "bridges": [
+  {
+   "id": "br-sambhaji",
+   "name": "Sambhaji (Lakdi Pul) Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.5122,
+     73.8456
+    ],
+    [
+     18.5152,
+     73.8456
+    ]
+   ]
+  },
+  {
+   "id": "br-shivaji",
+   "name": "Shivaji Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.5172,
+     73.8556
+    ],
+    [
+     18.5202,
+     73.8556
+    ]
+   ]
+  },
+  {
+   "id": "br-sangam",
+   "name": "Sangam Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.5275,
+     73.87
+    ],
+    [
+     18.5305,
+     73.87
+    ]
+   ]
+  },
+  {
+   "id": "br-holkar",
+   "name": "Holkar Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.5345,
+     73.876
+    ],
+    [
+     18.5375,
+     73.876
+    ]
+   ]
+  },
+  {
+   "id": "br-vitthalwadi",
+   "name": "Vitthalwadi Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.4935,
+     73.83
+    ],
+    [
+     18.4965,
+     73.83
+    ]
+   ]
+  },
+  {
+   "id": "br-bhide",
+   "name": "Bhide Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.509,
+     73.8405
+    ],
+    [
+     18.512,
+     73.8405
+    ]
+   ]
+  },
+  {
+   "id": "br-fitzgerald",
+   "name": "Fitzgerald Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.529,
+     73.879
+    ],
+    [
+     18.532,
+     73.879
+    ]
+   ]
+  },
+  {
+   "id": "br-baner",
+   "name": "Baner Bridge (SIMULATED)",
+   "geometry": [
+    [
+     18.5625,
+     73.786
+    ],
+    [
+     18.5655,
+     73.786
+    ]
+   ]
+  }
+ ],
+ "fire_stations": [
+  {
+   "id": "f001",
+   "name": "Pune Fire Brigade HQ, Shivajinagar",
+   "lat": 18.5316,
+   "lng": 73.8446
+  },
+  {
+   "id": "f002",
+   "name": "Kasba Peth Fire Station",
+   "lat": 18.5195,
+   "lng": 73.856
+  },
+  {
+   "id": "f003",
+   "name": "Kothrud Fire Station",
+   "lat": 18.509,
+   "lng": 73.807
+  },
+  {
+   "id": "f004",
+   "name": "Hadapsar Fire Station",
+   "lat": 18.501,
+   "lng": 73.925
+  },
+  {
+   "id": "f005",
+   "name": "Pimpri Fire Station",
+   "lat": 18.626,
+   "lng": 73.8
+  }
+ ],
+ "police_stations": [
+  {
+   "id": "p001",
+   "name": "Shivajinagar Police Station",
+   "lat": 18.533,
+   "lng": 73.849
+  },
+  {
+   "id": "p002",
+   "name": "Deccan Gymkhana Police Station",
+   "lat": 18.517,
+   "lng": 73.841
+  },
+  {
+   "id": "p003",
+   "name": "Swargate Police Station",
+   "lat": 18.5035,
+   "lng": 73.865
+  },
+  {
+   "id": "p004",
+   "name": "Kothrud Police Station",
+   "lat": 18.508,
+   "lng": 73.81
+  },
+  {
+   "id": "p005",
+   "name": "Yerawada Police Station",
+   "lat": 18.554,
+   "lng": 73.888
+  }
+ ]
+}

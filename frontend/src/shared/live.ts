@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { get, useBus } from './bus';
+import { clean } from './clean';
 import { EMPTY_WORLD } from './types';
 import type { CitizenReport, PlanPayload, ReplanResult, SimBusEvent, WorldState } from './types';
 
@@ -42,6 +43,7 @@ export function useLive(h: LiveHandlers = {}, pinRunId?: string | null) {
 
   const store = useCallback((d: PlanPayload) => {
     if (!d || typeof d.run_id !== 'string') return;
+    d = { ...d, incidents: (d.incidents ?? []).map((i) => ({ ...i, text: clean(i.text), location: clean(i.location) })) };
     setPayloads((prev) => {
       const next = { ...prev, [d.run_id]: d };
       const keys = Object.keys(next);
@@ -82,6 +84,18 @@ export function useLive(h: LiveHandlers = {}, pinRunId?: string | null) {
         return id;
       });
     },
+    // "Reset simulation" removed simulation runs: forget them and follow the real run the backend restored (or none).
+    'sim.reset': (d) => {
+      const p = (d ?? {}) as { removed_run_ids?: string[]; run_id?: string | null; city?: string | null };
+      const removed = new Set(p.removed_run_ids ?? []);
+      setPayloads((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !removed.has(k))));
+      setLatestRun((cur) => (cur && removed.has(cur) ? null : cur));
+      setAllReports((prev) => prev.filter((r) => !r.run_id || !removed.has(r.run_id)));
+      setSimEvents([]);
+      setWorld(EMPTY_WORLD);
+      setRunCity(p.city ?? null);
+      setServerRun(p.run_id ?? null);
+    },
     world: (d) => {
       const w = d as WorldState;
       const active = activeRef.current;
@@ -96,13 +110,30 @@ export function useLive(h: LiveHandlers = {}, pinRunId?: string | null) {
       setSimEvents((p) => [e, ...p].slice(0, 100));
       hr.current.onSimEvent?.(e);
     },
+  }, () => {
+    // (Re)connected: forget everything held locally. The backend replays what still exists, so data that was
+    // cleared on the server (restart, DB wipe, reset) no longer lingers on screen.
+    setPayloads({}); setLatestRun(null); setWorld(EMPTY_WORLD); setAllReports([]); setSimEvents([]);
+    setServerRun(null); setRunCity(null);
   });
 
-  // initial citizen reports once the stream is up
+  // Reports: the server list is the truth. Re-read it on connect and every 15 s so rows removed from the
+  // database disappear here too (the stream only ever announces new reports, never deletions).
   useEffect(() => {
     if (!connected) return;
-    get<CitizenReport[]>('/reports').then((list) => list.forEach((r) => addReport(r, false))).catch(() => undefined);
-  }, [connected, serverRun, addReport]);
+    let alive = true;
+    const sync = () => get<CitizenReport[]>('/reports').then((list) => {
+      if (!alive) return;
+      setAllReports((prev) => {
+        const known = new Set(prev.map((r) => r.token));
+        list.forEach((r) => { if (!known.has(r.token) && (!r.run_id || r.run_id === activeRef.current || activeRef.current == null)) hr.current.onReport?.(r); });
+        return [...list].reverse().slice(0, 200);
+      });
+    }).catch(() => undefined);
+    void sync();
+    const id = setInterval(sync, 15000);
+    return () => { alive = false; clearInterval(id); };
+  }, [connected, serverRun]);
 
   const payload = activeRunId ? payloads[activeRunId] ?? null : null;
   const reports = useMemo(

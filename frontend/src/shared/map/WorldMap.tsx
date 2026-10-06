@@ -38,6 +38,8 @@ export interface WorldMapProps {
   /** edit mode only: tools (Leaflet children) and entity click routing */
   children?: ReactNode;
   onEntityClick?: (e: EntityClick) => void;
+  /** edit mode only: extra content in an incident's popup (the simulator's evidence options) */
+  incidentActions?: (i: Incident) => ReactNode;
   vehicleActions?: (v: WorldVehicle) => ReactNode;
   regionActions?: (r: AffectedRegion) => ReactNode;
   disruptionActions?: (d: Disruption) => ReactNode;
@@ -161,6 +163,13 @@ export function WorldMap(p: WorldMapProps) {
             );
           })}
 
+          {on.routes && p.world.transfers?.filter((t) => t.path.length >= 2).map((t) => (
+            <Polyline key={t.id} positions={t.path.map(([a, b]) => [a, b] as [number, number])}
+              pathOptions={{ color: '#7e22ce', weight: 4, opacity: 0.9, dashArray: '8 6' }}>
+              <Popup><strong>Patient transfer</strong> · {t.incident_id}<br />{t.from_name} → {t.to_name}<br />ETA {t.eta_s}s</Popup>
+            </Polyline>
+          ))}
+
           {on.zones && p.zones?.map((z) => (
             <CircleMarker key={z.id} center={[z.center_lat, z.center_lng]} radius={10 + Math.min(18, Math.sqrt(z.incident_ids.length) * 4)}
               pathOptions={{ color: '#e07b1a', fillColor: '#e07b1a', fillOpacity: 0.15, weight: 2, dashArray: '4 4' }}>
@@ -177,7 +186,7 @@ export function WorldMap(p: WorldMapProps) {
               <Marker key={h.id} position={[h.lat, h.lng]} icon={glyph(st === 'offline' ? '×' : 'H', colour)}
                 eventHandlers={{ click: () => click({ type: 'facility', id: h.id, lat: h.lat, lng: h.lng, label: h.name }) }}>
                 <Popup>
-                  <strong>{h.name}</strong> (simulated)<br />
+                  <strong>{h.name}</strong><br />
                   Beds occupied {v.occupied}/{v.capacity} ({Math.round(v.occupancy * 100)}%)
                   {st !== 'open' && <> · <b>{st === 'offline' ? 'OFFLINE' : 'FULL'}</b></>}
                   {v.atCapacity && <> · <b>AT CAPACITY, diverting</b></>}
@@ -192,7 +201,7 @@ export function WorldMap(p: WorldMapProps) {
           {on.depots && DEPOTS.map((d) => (
             <Marker key={d.id} position={[d.lat, d.lng]} icon={glyph('R', '#7e22ce')}
               eventHandlers={{ click: () => click({ type: 'facility', id: d.id, lat: d.lat, lng: d.lng, label: d.name }) }}>
-              <Popup><strong>{d.name}</strong> (simulated)</Popup>
+              <Popup><strong>{d.name}</strong></Popup>
             </Marker>
           ))}
 
@@ -209,7 +218,10 @@ export function WorldMap(p: WorldMapProps) {
                   <span style={{ color: '#6b6b6b' }}>Status: {status === 'assigned' ? 'team assigned' : status}</span><br />
                   {i.text.length > 140 ? `${i.text.slice(0, 140)}…` : i.text}<br />
                   <span style={{ color: '#6b6b6b' }}>{i.location} · {i.source}</span>
-                  {i.verification && <><br />Credibility {(i.verification.credibility * 100).toFixed(0)}%{i.verification.flagged ? ' · FLAGGED' : ''}</>}
+                  {i.verification
+                    ? <><br />Credibility {(i.verification.credibility * 100).toFixed(0)}%{i.verification.flagged ? ' · FLAGGED' : ''}</>
+                    : !isFeedIncident(i) && <><br />Credibility: pending verification</>}
+                  {edit && p.incidentActions?.(i)}
                 </Popup>
               </Marker>
             );
@@ -223,8 +235,10 @@ export function WorldMap(p: WorldMapProps) {
             const handlers = { click: () => click({ type: 'disruption', id: d.id, lat: pos[0], lng: pos[1], label }) };
             if (d.kind === 'road_blocked') {
               return (
+                // bubblingMouseEvents: false -- a click on an existing block must open ITS popup only. Leaflet paths pass the click on
+                // to the map by default, and with the Block-road tool selected the map click placed a second block right beside it.
                 <Circle key={d.id} center={pos} radius={150} eventHandlers={handlers}
-                  pathOptions={{ color: '#b3261e', weight: 3, dashArray: '6 5', fillColor: '#b3261e', fillOpacity: 0.2 }}>{popup}</Circle>
+                  pathOptions={{ color: '#b3261e', weight: 3, dashArray: '6 5', fillColor: '#b3261e', fillOpacity: 0.2, bubblingMouseEvents: false }}>{popup}</Circle>
               );
             }
             if (d.kind === 'bridge_collapsed') return null; // drawn as the red bridge line
@@ -254,6 +268,12 @@ export function WorldMap(p: WorldMapProps) {
               </Marker>
             );
           })}
+
+          {on.vehicles && p.world.transfers?.map((t) => (
+            <Marker key={`${t.id}-m`} position={[t.lat, t.lng]} zIndexOffset={900} icon={glyph('+', '#7e22ce', 22)}>
+              <Tooltip permanent direction="right" offset={[12, 0]} className="!px-1.5 !py-0.5 !text-[10px]">Transfer to {t.to_name}</Tooltip>
+            </Marker>
+          ))}
 
           {edit && p.children}
         </MapContainer>

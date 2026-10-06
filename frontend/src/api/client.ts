@@ -4,6 +4,11 @@ import type {
   Incident,
   ResponsePlan,
   RunState,
+  Signal,
+  SignalRefreshSummary,
+  SignalScoring,
+  SignalSource,
+  SignalsStatus,
 } from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -60,6 +65,26 @@ export const api = {
     }),
 
   getAlerts: (runId: string) => request<AlertDraft[]>(`/alerts/${runId}`),
+
+  getSignals: (opts: { city?: string; source?: SignalSource; activeOnly?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.city) q.set('city', opts.city);
+    if (opts.source) q.set('source', opts.source);
+    if (opts.activeOnly === false) q.set('active_only', 'false');
+    const qs = q.toString();
+    return request<Signal[]>(qs ? `/signals?${qs}` : '/signals');
+  },
+
+  getSignalsStatus: () => request<SignalsStatus>('/signals/status'),
+
+  getSignalScoring: () => request<SignalScoring>('/signals/scoring'),
+
+  /** Pull one source now (the backend also polls on a schedule). `city` must be a cached city. */
+  refreshSignals: (source: SignalSource, city?: string) => {
+    const path = { sachet: 'sachet', open_meteo: 'open-meteo', gdelt: 'gdelt' }[source];
+    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
+    return request<SignalRefreshSummary>(`/signals/${path}/refresh${qs}`, { method: 'POST' });
+  },
 
   streamUrl: (runId: string) => `${BASE}/runs/${runId}/stream`,
 };

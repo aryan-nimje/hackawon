@@ -45,9 +45,9 @@ def test_suspicious_report_low_credibility():
     assert any("suspicious" in r.lower() for r in reasons)
 
 
-def test_duplicate_reduces_credibility():
-    a = _incident(id="r001", text="Water rising fast on Main St downtown", lat=29.7604, lng=-95.3698)
-    b = _incident(id="r002", text="Water rising fast on Main St downtown area", lat=29.7605, lng=-95.3699)
-    score, reasons = _score_incident(b, [a, b])
-    assert score < 0.65
-    assert any("duplicate" in r.lower() for r in reasons)
+def test_copy_pasted_reports_are_not_penalised_and_do_not_corroborate():
+    a = _incident(id="r001", text="Water rising fast on Main St downtown", lat=18.5130, lng=73.8455)
+    b = _incident(id="r002", text="Water rising fast on Main St downtown area", lat=18.5131, lng=73.8456)
+    score_b, reasons = _score_incident(b, [a, b], signals=[])
+    assert score_b >= 0.65  # the old duplicate penalty is gone
+    assert not any("Corroborated by" in r for r in reasons)  # a copy counts as the same report

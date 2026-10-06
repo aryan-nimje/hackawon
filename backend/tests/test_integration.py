@@ -6,7 +6,11 @@ from supervisor import create_run, run_pipeline
 
 
 @pytest.mark.asyncio
-async def test_full_mock_pipeline():
+async def test_full_mock_pipeline(monkeypatch):
+    # The demo pipeline runs on the shipped Pune reports, which are off by default (they are not in the database).
+    monkeypatch.setenv("SEED_REPORTS", "true")
+    from config import get_settings
+    get_settings.cache_clear()
     run = create_run()
     completed = await run_pipeline(run)
     assert completed.status.value == "completed"

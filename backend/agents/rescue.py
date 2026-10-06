@@ -10,7 +10,7 @@ from services.llm import llm_service
 from state import Incident, NeedType, RescueAssignment, RescueOutput, RunState, Urgency
 
 URGENCY_WEIGHT = {"critical": 40, "high": 25, "medium": 10, "low": 3}
-VULNERABLE_WEIGHT = {"elderly": 8, "children": 10, "disabled": 7, "infant": 12, "pregnant": 9, "medical_needs": 6}
+VULNERABLE_WEIGHT = {"elderly": 8, "children": 10, "disabled": 7, "limited_mobility": 7, "infant": 12, "pregnant": 9, "medical_needs": 6}
 
 
 def _credibility_map(state: RunState) -> Dict[str, float]:
@@ -61,8 +61,13 @@ async def _explain(incident: Incident, score: float, factors: List[str]) -> str:
         return f"Priority {score:.1f}: " + "; ".join(factors[:3])
 
 
-async def run_rescue(state: RunState) -> RescueOutput:
-    """Build ranked rescue queue for rescue/evacuation incidents."""
+async def run_rescue(state: RunState, explain_ids: set[str] | None = None) -> RescueOutput:
+    """Build ranked rescue queue for rescue/evacuation incidents.
+
+    `explain_ids`: when given (a new incident joins a live plan), every incident is re-scored and
+    re-ranked in code, but only these get a fresh explanation; the rest keep the one they had.
+    """
+    previous = {r.incident_id: r.explanation for r in state.rescue_queue}
     cred_map = _credibility_map(state)
     now = datetime.utcnow()
     candidates = [
@@ -81,7 +86,10 @@ async def run_rescue(state: RunState) -> RescueOutput:
     scored.sort(key=lambda x: -x[1])
     queue: List[RescueAssignment] = []
     for rank, (inc, score, factors) in enumerate(scored, start=1):
-        explanation = await _explain(inc, score, factors)
+        if explain_ids is not None and inc.id not in explain_ids and inc.id in previous:
+            explanation = previous[inc.id]
+        else:
+            explanation = await _explain(inc, score, factors)
         vulnerable = inc.raw_metadata.get("vulnerable", []) if inc.raw_metadata else []
         queue.append(
             RescueAssignment(

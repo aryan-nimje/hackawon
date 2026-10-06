@@ -2,14 +2,14 @@ import { useCallback, useState } from 'react';
 import { WorldMap, type EntityClick } from '../shared/map/WorldMap';
 import { Banner, Button } from '../shared/ui';
 import { MapTools, type Tool, type ToolOptions } from './tools/MapTools';
-import { EMPTY_DRAFT, EventLog, HospitalBeds, IncidentForm, ScenarioControls, ScoreCard, TeamList, ToolPalette, fmtClock, type IncidentDraft } from './Panels';
+import { EMPTY_DRAFT, EventLog, HospitalBeds, IncidentEvidenceActions, IncidentForm, ScenarioControls, ScoreCard, TeamList, ToolPalette, fmtClock, type IncidentDraft } from './Panels';
 import { makePresets } from './presets';
 import { useSimulation } from './useSimulation';
 
 export default function SimApp() {
   const sim = useSimulation();
   const [tool, setTool] = useState<Tool>('select');
-  const [opts, setOpts] = useState<ToolOptions>({ roadState: 'blocked', hazard: 'flood', severity: 'high', growing: true });
+  const [opts, setOpts] = useState<ToolOptions>({ hazard: 'flood', severity: 'high', growing: true });
   const [pending, setPending] = useState<[number, number] | null>(null);
   const [draft, setDraft] = useState<IncidentDraft>(EMPTY_DRAFT);
   const [adding, setAdding] = useState(false);
@@ -29,7 +29,7 @@ export default function SimApp() {
     setAddError(null);
     try {
       await sim.addIncident({
-        text: draft.text.trim(), location: `${pending[0].toFixed(4)}, ${pending[1].toFixed(4)} (sim)`, lat: pending[0], lng: pending[1],
+        text: draft.text.trim(), location: `${pending[0].toFixed(4)}, ${pending[1].toFixed(4)}`, lat: pending[0], lng: pending[1],
         need_type: draft.need_type, urgency: draft.urgency, people: draft.people,
       });
       setPending(null);
@@ -63,12 +63,13 @@ export default function SimApp() {
       {!sim.connected && <div className="mb-3"><Banner tone="error">Cannot reach the live stream. Check VITE_API_BASE_URL. You can still place faults; they publish once the backend is back.</Banner></div>}
       {sim.startError && <div className="mb-3"><Banner tone="error">{sim.startError}</Banner></div>}
       {sim.pubError && <div className="mb-3"><Banner tone="warn">Could not publish world state: {sim.pubError}</Banner></div>}
+      {sim.resetError && <div className="mb-3"><Banner tone="error">{sim.resetError}</Banner></div>}
 
       <div className="grid gap-3 lg:grid-cols-[19rem_1fr_20rem]">
         <div className="space-y-3">
-          <ScenarioControls started={started} starting={sim.starting} running={sim.running} speed={sim.speed}
+          <ScenarioControls started={started} starting={sim.starting} resetting={sim.resetting} running={sim.running} speed={sim.speed}
             autoReplan={sim.autoReplan} escalateAfterS={sim.escalateAfterS}
-            onStart={sim.start} onTogglePlay={() => sim.setRunning(!sim.running)} onReset={() => { sim.reset(); cancel(); }}
+            onStart={sim.start} onTogglePlay={() => sim.setRunning(!sim.running)} onReset={() => { cancel(); setPending(null); setAddError(null); void sim.reset(); }}
             onSpeed={sim.setSpeed} onAutoReplan={sim.setAutoReplan} onEscalate={sim.setEscalateAfterS}
             onPreset={(id) => { const p = makePresets().find((x) => x.id === id); if (p) sim.act((w) => w.loadPreset(p)); }} />
           <ToolPalette tool={tool} onTool={(t) => { setTool(t); setPending(null); }} opts={opts} onOpts={setOpts} />
@@ -81,8 +82,9 @@ export default function SimApp() {
         </div>
 
         <div className="h-[34rem] rounded-2xl border border-[#e8e4dc] bg-white p-3 shadow-sm lg:h-[44rem]">
-          <WorldMap mode="edit" title="Simulated world" autoCity={!started} world={sim.snap} incidents={sim.incidents} routes={routes}
+          <WorldMap mode="edit" title="World map" autoCity={!started} world={sim.snap} incidents={sim.incidents} routes={routes}
             approvedRouteKeys={sim.approvedKeys} zones={sim.payload?.zones} cursor={cursor} onEntityClick={onEntity}
+            incidentActions={(i) => <IncidentEvidenceActions incident={i} started={started} onEvidence={sim.addEvidence} />}
             vehicleActions={(v) => (
               <div className="mt-2 flex flex-wrap gap-1">
                 <Button small variant="danger" onClick={() => sim.act((w) => w.failVehicle(v.id, 'stop'))}>Stop</Button>
@@ -98,21 +100,24 @@ export default function SimApp() {
               <div className="mt-2"><Button small variant="primary" onClick={() => sim.act((w) => w.clearDisruption(d.id))}>Clear</Button></div>
             )}>
             <MapTools tool={tool} opts={opts} routes={routes} pendingIncident={pending} onCancel={cancel}
-              onRoad={(la, ln, s) => sim.act((w) => w.blockRoad(la, ln, s))}
+              onRoad={(la, ln) => sim.act((w) => w.blockRoad(la, ln))}
               onPickIncident={(la, ln) => setPending([la, ln])}
               onRegion={(la, ln, r) => sim.act((w) => w.addRegion(opts.hazard, la, ln, r, opts.severity, opts.growing))} />
           </WorldMap>
         </div>
 
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3 lg:h-[44rem]">
           <ScoreCard score={sim.score} />
-          <HospitalBeds world={sim.snap} diverted={sim.snap.diverted}
+          <HospitalBeds fill world={sim.snap} diverted={sim.snap.diverted}
             onAdjust={(id, d) => sim.act((w) => w.setBeds(id, (sim.snap.beds[id] ?? 0) + d))}
             onFull={(id, full) => sim.act((w) => w.markFull(id, full))}
             onOffline={(id, off) => sim.act((w) => w.setOffline(id, off))} />
-          <TeamList teams={sim.snap.vehicles} />
-          <EventLog events={sim.snap.events} />
         </div>
+      </div>
+
+      <div className="mt-3 grid items-start gap-3 md:grid-cols-2">
+        <TeamList teams={sim.snap.vehicles} />
+        <EventLog events={sim.snap.events} />
       </div>
     </div>
   );

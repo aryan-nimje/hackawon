@@ -2,13 +2,12 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
-/** Friendly URLs in dev/preview: /report -> citizen.html, /sim -> simulation.html */
+/** Friendly URLs in dev/preview: /sim -> simulation.html */
 function pageRoutes(): Plugin {
   const rewrite = (url: string | undefined): string | undefined => {
     if (!url) return url;
     const [path, query] = url.split('?');
     const map: Record<string, string> = {
-      '/report': '/citizen.html',
       '/sim': '/simulation.html',
     };
     const target = map[path.replace(/\/$/, '')];
@@ -37,7 +36,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        citizen: resolve(__dirname, 'citizen.html'),
         simulation: resolve(__dirname, 'simulation.html'),
       },
     },

@@ -43,6 +43,11 @@ class EventBus:
             if queue in self._subscribers[run_id]:
                 self._subscribers[run_id].remove(queue)
 
+    def forget(self, run_id: str) -> None:
+        """Drop a run's activity history (used when a simulation run is removed)."""
+        self._history.pop(run_id, None)
+        self._subscribers.pop(run_id, None)
+
     def get_history(self, run_id: str) -> List[ActivityEvent]:
         return list(self._history.get(run_id, []))
 

@@ -69,10 +69,31 @@ def allocate_supplies(zones: List[Zone], warehouses: List[Dict]) -> List[SupplyA
     return allocations
 
 
-async def run_logistics(state: RunState) -> LogisticsOutput:
-    """Build supply allocation plan from zone needs and mock inventory."""
+def _remaining_inventory(warehouses: List[Dict], existing: List[SupplyAllocation]) -> List[Dict]:
+    """Warehouses with the stock already promised in `existing` allocations taken out."""
+    used: Dict[str, Dict[str, int]] = {}
+    for a in existing:
+        wh = used.setdefault(a.warehouse_id, {})
+        for item, qty in a.items.items():
+            wh[item] = wh.get(item, 0) + qty
+    return [
+        {**w, "inventory": {k: max(0, v - used.get(w["id"], {}).get(k, 0)) for k, v in w.get("inventory", {}).items()}}
+        for w in warehouses
+    ]
+
+
+async def run_logistics(state: RunState, zone_ids: set[str] | None = None) -> LogisticsOutput:
+    """Build supply allocation plan from zone needs and mock inventory.
+
+    `zone_ids`: when given (a new zone joins a live plan), only those zones are allocated, from what is
+    left after the existing allocations. The output then holds just the new allocations.
+    """
     warehouses = load_inventory()
-    allocations = allocate_supplies(state.zones, warehouses)
+    if zone_ids is None:
+        allocations = allocate_supplies(state.zones, warehouses)
+    else:
+        remaining = _remaining_inventory(warehouses, state.supply_allocations)
+        allocations = allocate_supplies([z for z in state.zones if z.id in zone_ids], remaining) if remaining else []
 
     if not get_settings().effective_mock_mode:
         for alloc in allocations:

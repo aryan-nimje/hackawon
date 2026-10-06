@@ -7,7 +7,7 @@ import { useLive } from '../shared/live';
 import { WorldMap } from '../shared/map/WorldMap';
 import type { ReplanAction, ReplanResult, SimBusEvent } from '../shared/types';
 import { Banner, Toasts, type ToastMsg } from '../shared/ui';
-import { AlertDrafts, ExecutionTracker, HospitalCapacity, LiveFeed, PlanReview, WeatherCard } from './panels';
+import { AlertDrafts, ExecutionTracker, ExternalFeed, HospitalCapacity, LiveFeed, PlanReview, useSignals } from './panels';
 
 export default function AuthorityApp() {
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
@@ -29,12 +29,16 @@ export default function AuthorityApp() {
   const { payload, world, reports, connected, activeRunId, runCity } = live;
   useCityVersion(); // re-render panels when the city's layers change
 
-  // Authority is read-only: it shows the city the active run plans for (the simulator chooses it).
+  // Authority is read-only: it shows the city the active run plans for. The backend sends it with `run.active`,
+  // whether the run came from the simulator or from real reports.
   useEffect(() => {
     if (!runCity || runCity === CITY.slug) return;
     void loadCity(runCity).then((r) => { if (!r.ok) toast(`Could not load ${runCity}: ${r.error}`, 'error'); });
   }, [runCity, toast]);
   const plan = payload?.plan ?? null;
+  // external signals (live news, alerts) and simulated evidence; re-read when the plan payload changes (credibility moved)
+  const { signals, error: signalsError } = useSignals(payload);
+  const simulationRunning = world.run_id != null && world.run_id === activeRunId && world.ts > 0;
 
   const incidents = useMemo(
     () => mergeIncidents({ backend: payload?.incidents ?? [], reports, sim: world.sim_incidents, override: world.urgency_override }),
@@ -79,7 +83,7 @@ export default function AuthorityApp() {
       <header className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e8e4dc] bg-white px-4 py-2.5 shadow-sm">
         <div>
           <h1 className="text-base font-bold">Authority command</h1>
-          <p className="text-[11px] text-[#6b6b6b]">Decision-support dashboard · simulated scenario{runId && <> · run <span className="font-mono">{runId.slice(0, 8)}</span></>}</p>
+          <p className="text-[11px] text-[#6b6b6b]">Decision-support dashboard{runId && <> · run <span className="font-mono">{runId.slice(0, 8)}</span></>}</p>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${connected ? 'bg-[#e3eeee] text-[#1f4f52]' : 'bg-[#fbe9e7] text-[#8c1d17]'}`}>
           {connected ? '● Connected' : '○ Reconnecting…'}
@@ -99,7 +103,7 @@ export default function AuthorityApp() {
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[20rem_1fr_24rem]">
         <div className="flex min-h-[20rem] min-w-0 flex-col gap-3 lg:min-h-0">
-          <WeatherCard incidents={incidents} />
+          <ExternalFeed signals={signals} error={signalsError} incidents={incidents} simulationRunning={simulationRunning} />
           <LiveFeed incidents={incidents} escalated={world.urgency_override} selectedId={selected} incidentStatus={world.incident_status} simTimeS={world.sim_time_s}
             onSelect={(i) => { setSelected(i.id); setFocus({ lat: i.lat, lng: i.lng, key: Date.now() }); }} />
         </div>

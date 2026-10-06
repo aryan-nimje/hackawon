@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from services.bus import bus
+from services.city import effective_city_slug
 from services.plan_payload import build_plan_payload
 from services.store import run_store
 
@@ -26,9 +27,15 @@ async def bus_stream(request: Request):
             yield ": connected\n\n"
 
             # Replay current state so a dashboard opened mid-run isn't empty.
-            if bus.latest_world is not None:
-                yield bus.frame("world", bus.latest_world)
-            run = run_store.get_latest_run()
+            if run_store.active_run_id:
+                active = run_store.get_active_run()
+                yield bus.frame("run.active", {"run_id": run_store.active_run_id, "city": effective_city_slug(active.city) if active else None})
+            # The last world snapshot is only replayed while it belongs to the run clients follow. One tagged with a
+            # run that is gone (reset, deleted from the database) or that is not the active one is stale.
+            world = bus.latest_world
+            if world is not None and (world.get("run_id") is None or world.get("run_id") == run_store.active_run_id):
+                yield bus.frame("world", world)
+            run = run_store.get_active_run()  # no active run: nothing to replay (the newest old run is not "current")
             if run is not None:
                 yield bus.frame("plan.updated", build_plan_payload(run))
 

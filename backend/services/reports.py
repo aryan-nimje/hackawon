@@ -7,6 +7,8 @@ from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from services import persistence
+
 MAX_REPORTS = 5000
 
 # (status, seconds after creation, citizen-facing summary). A time-based timeline for now;
@@ -32,19 +34,44 @@ class ReportStore:
     def __init__(self) -> None:
         self._reports: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 
-    def add(self, submission: Dict[str, Any]) -> Dict[str, Any]:
+    def add(self, submission: Dict[str, Any], run_id: Optional[str] = None) -> Dict[str, Any]:
         token = secrets.token_urlsafe(12)
-        rec = {"token": token, "created_at": iso(now_utc()), "submission": submission}
+        # run_id ties a report to the run that was active when it came in; None = no run active (real).
+        rec = {"token": token, "created_at": iso(now_utc()), "submission": submission, "run_id": run_id}
         self._reports[token] = rec
         while len(self._reports) > MAX_REPORTS:
-            self._reports.popitem(last=False)
+            self._reports.popitem(last=False)  # evicted from memory only; the database keeps every row
+        persistence.save_submission(rec)
         return rec
+
+    def load_from_db(self) -> int:
+        for rec in persistence.load_submissions(MAX_REPORTS):
+            self._reports[rec["token"]] = rec
+        return len(self._reports)
+
+    def sync_from_db(self) -> Optional[int]:
+        """Make memory match the database (see RunStore.sync_from_db). Returns how many reports were dropped, or None
+        when the database is not configured or cannot be read."""
+        rows = persistence.load_submissions_strict(MAX_REPORTS)
+        if rows is None:
+            return None
+        keep = {r["token"] for r in rows}
+        gone = [t for t in self._reports if t not in keep]
+        for t in gone:
+            del self._reports[t]
+        for rec in rows:
+            self._reports.setdefault(rec["token"], rec)
+        return len(gone)
 
     def get(self, token: str) -> Optional[Dict[str, Any]]:
         return self._reports.get(token)
 
-    def list(self) -> List[Dict[str, Any]]:
-        return list(self._reports.values())
+    def list(self, active_run_id: Optional[str] = None, all_runs: bool = False) -> List[Dict[str, Any]]:
+        """Reports of the active run plus untagged ones. Other runs' reports are hidden, not deleted."""
+        recs = list(self._reports.values())
+        if all_runs:
+            return recs
+        return [r for r in recs if r.get("run_id") in (None, active_run_id)]
 
     @staticmethod
     def status_view(rec: Dict[str, Any], now: Optional[datetime] = None) -> Dict[str, Any]:

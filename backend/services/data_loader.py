@@ -24,24 +24,45 @@ def load_news() -> List[Dict[str, Any]]:
 
 
 def load_hospitals() -> List[Dict[str, Any]]:
-    return load_json("hospitals.json")
+    """Hospitals of the default city, in the shape the agents use (`beds_available`)."""
+    from services.city import get_default_layers
+
+    out = []
+    for h in get_default_layers().get("hospitals", []):
+        out.append({**h, "beds_available": h.get("beds_available", h.get("beds", 0))})
+    return out
 
 
 def load_inventory() -> List[Dict[str, Any]]:
-    return load_json("inventory.json")
+    """Depots of the default city, in the shape the logistics agent uses (`inventory`)."""
+    from services.city import get_default_layers
+
+    return [{**d, "inventory": dict(d.get("stock", {}))} for d in get_default_layers().get("depots", [])]
 
 
 def load_scenario() -> Dict[str, Any]:
     return load_json("scenario.json")
 
 
+def is_scenario_city(slug: str | None) -> bool:
+    """True when `slug` is the city the shipped scenario and reports are written for (Pune), or no city is set.
+    Their coordinates only make sense there, so other cities start empty and get incidents from the simulator."""
+    if not slug:
+        return True
+    from services.osm import slugify
+
+    return slug == slugify(str(load_scenario().get("city", "pune")))
+
+
 def load_blocked_zones() -> List[List[List[float]]]:
-    geo = load_json("blocked_zones.geojson")
+    """Flood-zone polygons as [[lng, lat], ...] rings (GeoJSON order) for route checks."""
+    from services.city import get_default_layers
+
     polygons: List[List[List[float]]] = []
-    for feature in geo.get("features", []):
-        geom = feature.get("geometry", {})
-        if geom.get("type") == "Polygon":
-            polygons.append(geom["coordinates"][0])
+    for z in get_default_layers().get("flood_zones", []):
+        ring = z.get("ring") or []
+        if len(ring) >= 4:
+            polygons.append([[p[1], p[0]] for p in ring])
     return polygons
 
 

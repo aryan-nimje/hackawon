@@ -7,7 +7,6 @@ import type { HazardType, RouteInfo } from '../../shared/types';
 export type Tool = 'select' | 'road' | 'bridge' | 'site' | 'incident' | 'region';
 
 export interface ToolOptions {
-  roadState: 'blocked' | 'flooded';
   hazard: HazardType;
   severity: 'low' | 'medium' | 'high' | 'critical';
   growing: boolean;
@@ -18,7 +17,7 @@ interface Props {
   opts: ToolOptions;
   routes: RouteInfo[];
   pendingIncident: [number, number] | null;
-  onRoad: (lat: number, lng: number, state: 'blocked' | 'flooded') => void;
+  onRoad: (lat: number, lng: number) => void;
   onPickIncident: (lat: number, lng: number) => void;
   onRegion: (lat: number, lng: number, radiusM: number) => void;
   onCancel: () => void;
@@ -61,7 +60,7 @@ export function MapTools({ tool, opts, routes, pendingIncident, onRoad, onPickIn
     click: (e) => {
       if (tool === 'road') {
         const [la, ln] = snap(e.latlng.lat, e.latlng.lng, routes);
-        onRoad(la, ln, opts.roadState);
+        onRoad(la, ln);
       } else if (tool === 'incident') {
         onPickIncident(e.latlng.lat, e.latlng.lng);
       }

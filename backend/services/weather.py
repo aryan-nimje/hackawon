@@ -13,17 +13,22 @@ from state import Incident, IncidentSource, NeedType, Urgency
 
 logger = logging.getLogger(__name__)
 
-# Houston, TX — urban flood scenario center
-DEFAULT_LAT = 29.7604
-DEFAULT_LNG = -95.3698
+from services.city import city_label, get_city
 
 
 async def fetch_weather_alert(
-    lat: float = DEFAULT_LAT,
-    lng: float = DEFAULT_LNG,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
 ) -> Optional[Incident]:
-    """Fetch current weather and create an alert incident if conditions are severe."""
+    """Fetch current weather for the default city and create an alert incident if conditions are severe.
+
+    In mock mode, or with SIMULATE_WEATHER=true, a simulated heavy-rain alert is returned when real
+    weather is clear or the API fails, so the demo always has a weather incident.
+    """
     settings = get_settings()
+    if lat is None or lng is None:
+        lat, lng = get_city()["center"]
+    place = f"{city_label()} Metro"
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
@@ -57,7 +62,7 @@ async def fetch_weather_alert(
                         f"Current precipitation: {precip}mm, rain: {rain}mm. "
                         "Urban flood conditions possible in low-lying areas."
                     ),
-                    location="Greater Houston Metro",
+                    location=place,
                     lat=lat,
                     lng=lng,
                     need_type=NeedType.INFORMATION,
@@ -69,14 +74,14 @@ async def fetch_weather_alert(
     except Exception as exc:
         logger.warning("Weather API failed, using mock alert: %s", exc)
 
-    if settings.effective_mock_mode:
+    if settings.effective_mock_mode or settings.simulate_weather:
         return Incident(
             id="weather-alert-001",
             text=(
                 "[SIMULATED WEATHER ALERT] Heavy rainfall event in progress. "
-                "Flash flood warning for Harris County. 80mm accumulated in 6 hours."
+                f"Flash flood warning for {city_label()} district. 80mm accumulated in 6 hours."
             ),
-            location="Greater Houston Metro",
+            location=place,
             lat=lat,
             lng=lng,
             need_type=NeedType.INFORMATION,

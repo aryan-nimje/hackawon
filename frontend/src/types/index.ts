@@ -32,6 +32,9 @@ export interface VerificationResult {
   credibility: number;
   reasons: string[];
   flagged: boolean;
+  /** ids of the signals that back / contradict this incident (absent from older backends) */
+  supported_by?: string[];
+  contradicted_by?: string[];
 }
 
 export interface Zone {
@@ -237,4 +240,115 @@ export interface SimEvent {
   at_s: number;
   kind: 'info' | 'flood' | 'dispatch' | 'arrive' | 'bed' | 'citizen' | 'warn';
   text: string;
+}
+
+/**
+ * External evidence in the common signal format (GET /signals): SACHET official alerts, Open-Meteo weather
+ * (rain / river flood / wind / thunderstorm / heat) and GDELT news. No citizen data.
+ */
+export type SignalSeverity = 'unknown' | 'minor' | 'moderate' | 'severe' | 'extreme';
+export type SignalSource = 'sachet' | 'gdelt' | 'open_meteo';
+
+export interface Signal {
+  id: string; // "sachet:<cap identifier>" | "open_meteo:<city>:<type>" | "gdelt:<hash of link>"
+  source: SignalSource;
+  kind: 'official_alert' | 'news' | 'weather';
+  title: string;
+  text: string;
+  event: string;
+  hazards: string[];
+  severity: SignalSeverity;
+  urgency: string;
+  certainty: string;
+  instruction: string;
+  area: string;
+  lat: number | null;
+  lng: number | null;
+  /** [south, west, north, east] */
+  bbox: number[] | null;
+  /** rings of [lat, lng] */
+  polygons: number[][][];
+  /** [lat, lng, radius_km] */
+  circles: number[][];
+  sender: string;
+  source_url: string;
+  language: string;
+  msg_type: 'alert' | 'update' | 'cancel';
+  /** ids of signals this one updates / cancels */
+  references: string[];
+  issued_at: string | null;
+  effective_at: string | null;
+  expires_at: string | null;
+  fetched_at: string;
+  status: 'active' | 'cancelled' | 'superseded';
+  /** how far the source is trusted, and the ceiling of `weight` (SACHET 0.9, Open-Meteo 0.7, GDELT 0.5 by default) */
+  trust: number;
+  weight: number;
+  /**
+   * Small source-specific extras. Open-Meteo: city, endpoint, type, peak values. GDELT: domain, geo ('query_city'),
+   * corroborating_domains. SACHET: category, response_type.
+   */
+  metadata: Record<string, unknown>;
+  /** still in force (active and not expired) */
+  active: boolean;
+  /** 0..1, decays with age */
+  freshness: number;
+  /** current evidence strength, weight x freshness */
+  score: number;
+}
+
+/** Result of POST /signals/<source>/refresh and the `last_refresh` entries of GET /signals/status. */
+export interface SignalRefreshSummary {
+  ok: boolean;
+  disabled?: boolean;
+  added?: number;
+  updated?: number;
+  expired?: number;
+  pruned?: number;
+  signals?: number;
+  errors?: string[];
+  at?: string;
+  [key: string]: unknown;
+}
+
+export interface SignalSourceStatus {
+  enabled: boolean;
+  poll_seconds: number;
+  last_refresh: SignalRefreshSummary | null;
+  feeds?: string[];
+  cities?: string[];
+}
+
+/** GET /signals/status */
+export interface SignalsStatus {
+  counts: Partial<Record<SignalSource, number>>;
+  sachet: SignalSourceStatus;
+  open_meteo: SignalSourceStatus;
+  gdelt: SignalSourceStatus;
+}
+
+/** GET /signals/scoring: the constants in force (defaults plus environment overrides). */
+export interface SignalScoring {
+  source_trust: Record<SignalSource, number>;
+  severity_weights: Record<string, number>;
+  certainty_weights: Record<string, number>;
+  urgency_weights: Record<string, number>;
+  component_weights: Record<string, number>;
+  freshness_half_life_hours: number;
+  freshness_floor: number;
+  open_meteo: {
+    thresholds: Record<'rain_24h_mm' | 'rain_1h_mm' | 'flood_ratios' | 'wind_gust_kmh' | 'heat_c', Record<string, number>>;
+    ttl_hours: number;
+    certain_within_hours: number;
+    flood: { enabled: boolean; past_days: number; horizon_days: number; min_discharge_m3s: number };
+  };
+  gdelt: {
+    query_terms: string[];
+    timespan: string;
+    max_records: number;
+    source_lang: string;
+    ttl_hours: number;
+    corroboration_domains: number;
+    min_interval_seconds: number;
+  };
 }

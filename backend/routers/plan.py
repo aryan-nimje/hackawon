@@ -4,8 +4,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
 
+from agents.route import reroute_plan_item
 from rate_limit import limiter
 from services.bus import bus
+from services.city import city_context
 from services.plan_payload import broadcast_plan
 from services.store import run_store
 from state import PlanItemStatus, ReplanRequest, ReviewRequest
@@ -63,11 +65,31 @@ async def review_plan(run_id: str, body: ReviewRequest, request: Request):
 
 @router.post("/{run_id}/replan")
 async def replan(run_id: str, body: ReplanRequest):
-    """Authority -> sim: a vehicle is blocked; reroute or hold the plan item."""
+    """Authority -> Route Agent -> sim: a vehicle is blocked; reroute it or hold it.
+
+    "reroute" asks the Route Agent for the fastest clean OSRM route from the vehicle's current
+    position to its destination (checked against the live hazards). The result, including the new
+    geometry, is broadcast as `plan.replan` so the vehicle can follow it. If no clean route exists
+    the status is "no_clean_detour" and the vehicle keeps waiting for Authority."""
     run = run_store.get_run(run_id)
     if not run or not run.plan:
         raise HTTPException(404, "Run or plan not found")
     if not any(i.id == body.item_id for i in run.plan.items):
         raise HTTPException(404, "Plan item not found")
-    bus.publish("plan.replan", {"item_id": body.item_id, "action": body.action})
-    return {"ok": True, "item_id": body.item_id, "action": body.action}
+
+    result = {"ok": True, "run_id": run_id, "item_id": body.item_id, "action": body.action}
+    if body.action == "reroute":
+        with city_context(run.city):  # flood zones / depots of the run's city
+            out = await reroute_plan_item(run, body.item_id, bus.latest_world)
+        result.update(out.model_dump(mode="json"))
+        result["ok"] = out.status in ("rerouted", "no_clean_detour")
+        if out.route is not None:
+            # the plan now shows the route the vehicle actually follows
+            for lst in {id(run.routes): run.routes, id(run.plan.routes): run.plan.routes}.values():
+                for idx, r in enumerate(lst):
+                    if r.assignment_type == out.route.assignment_type and r.assignment_id == out.route.assignment_id:
+                        lst[idx] = out.route
+            run_store.update_run(run)
+            broadcast_plan(run, "plan.updated")
+    bus.publish("plan.replan", result)
+    return result

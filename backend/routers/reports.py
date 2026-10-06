@@ -1,5 +1,6 @@
 """Citizen report endpoints (public)."""
 
+import asyncio
 import math
 from typing import List, Optional
 
@@ -7,7 +8,9 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from rate_limit import limiter
+from services import citizen_db
 from services.bus import bus
+from services.store import run_store
 from services.reports import iso, now_utc, report_store
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -65,14 +68,20 @@ async def create_report(body: ReportSubmission, request: Request):
         return {"token": "hp_" + now_utc().strftime("%H%M%S%f"), "status": "received", "created_at": iso(now_utc())}
 
     submission = body.model_dump(mode="json", exclude={"website"})
-    rec = report_store.add(submission)
+    rec = report_store.add(submission, run_id=run_store.active_run_id)
     bus.publish("report.new", rec)
     return {"token": rec["token"], "status": "received", "created_at": rec["created_at"]}
 
 
 @router.get("")
-async def list_reports():
-    return report_store.list()
+async def list_reports(all: bool = False):
+    """Real reports come from the database the citizens write to; reports posted straight to this API
+    (simulator / demo) come from the local store. Oldest first, like the local store: the dashboard prepends."""
+    local = report_store.list(active_run_id=run_store.active_run_id, all_runs=all)
+    if not citizen_db.configured():
+        return local
+    rows = await asyncio.to_thread(citizen_db.fetch_recent)  # newest first
+    return [citizen_db.to_citizen_report(r) for r in reversed(rows)] + local
 
 
 @router.get("/{token}")

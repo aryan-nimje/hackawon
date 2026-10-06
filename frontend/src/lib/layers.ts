@@ -7,9 +7,10 @@
  * Depot stock and flood zones are simulated; hospitals / bridges come from the backend (OSM).
  */
 import { API_BASE } from '../shared/bus';
+import { clean } from '../shared/clean';
 
 export const CITY: { name: string; slug: string; center: [number, number]; zoom: number; bbox: [number, number, number, number] | null } = {
-  name: 'Pune, Maharashtra (Simulated)',
+  name: 'Pune, Maharashtra',
   slug: 'pune',
   center: [18.5204, 73.8567],
   zoom: 12,
@@ -45,10 +46,10 @@ export const HOSPITALS: Hospital[] = [
 ];
 
 export const DEPOTS: Depot[] = [
-  { id: 'w001', name: 'PMC Relief Warehouse, Swargate (simulated)', lat: 18.5018, lng: 73.8636, stock: { food_meals: 5000, water_bottles: 8000, blankets: 1200, vehicles: 12 } },
-  { id: 'w002', name: 'Red Cross Supply Depot, Shivajinagar (simulated)', lat: 18.5308, lng: 73.8475, stock: { food_meals: 2000, water_bottles: 4000, medicine_kits: 500, vehicles: 8 } },
-  { id: 'w003', name: 'NDRF Staging Area, Pimpri-Chinchwad (simulated)', lat: 18.6279, lng: 73.8009, stock: { food_meals: 10000, water_bottles: 15000, medicine_kits: 800, vehicles: 25, boats: 6 } },
-  { id: 'w004', name: 'Community Relief Centre, Kothrud (simulated)', lat: 18.5074, lng: 73.8077, stock: { food_meals: 800, water_bottles: 1500, blankets: 300, vehicles: 3 } },
+  { id: 'w001', name: 'PMC Relief Warehouse, Swargate', lat: 18.5018, lng: 73.8636, stock: { food_meals: 5000, water_bottles: 8000, blankets: 1200, vehicles: 12 } },
+  { id: 'w002', name: 'Red Cross Supply Depot, Shivajinagar', lat: 18.5308, lng: 73.8475, stock: { food_meals: 2000, water_bottles: 4000, medicine_kits: 500, vehicles: 8 } },
+  { id: 'w003', name: 'NDRF Staging Area, Pimpri-Chinchwad', lat: 18.6279, lng: 73.8009, stock: { food_meals: 10000, water_bottles: 15000, medicine_kits: 800, vehicles: 25, boats: 6 } },
+  { id: 'w004', name: 'Community Relief Centre, Kothrud', lat: 18.5074, lng: 73.8077, stock: { food_meals: 800, water_bottles: 1500, blankets: 300, vehicles: 3 } },
 ];
 
 export interface FloodZone {
@@ -64,9 +65,9 @@ function rect(lat1: number, lng1: number, lat2: number, lng2: number): [number, 
 }
 
 export const BASE_FLOOD_ZONES: FloodZone[] = [
-  { id: 'flood-1', name: 'Mutha Riverbank, Deccan (SIMULATED)', reason: 'River overtopping', ring: rect(18.5100, 73.8430, 18.5160, 73.8500) },
-  { id: 'flood-2', name: 'Mula-Mutha Confluence, Sangamwadi (SIMULATED)', reason: 'Deep water on low-lying roads', ring: rect(18.5280, 73.8650, 18.5340, 73.8730) },
-  { id: 'flood-3', name: 'Sinhagad Road Low-Lying Block (SIMULATED)', reason: 'Street flooding 3ft+', ring: rect(18.4800, 73.8180, 18.4860, 73.8260) },
+  { id: 'flood-1', name: 'Mutha Riverbank, Deccan', reason: 'River overtopping', ring: rect(18.5100, 73.8430, 18.5160, 73.8500) },
+  { id: 'flood-2', name: 'Mula-Mutha Confluence, Sangamwadi', reason: 'Deep water on low-lying roads', ring: rect(18.5280, 73.8650, 18.5340, 73.8730) },
+  { id: 'flood-3', name: 'Sinhagad Road Low-Lying Block', reason: 'Street flooding 3ft+', ring: rect(18.4800, 73.8180, 18.4860, 73.8260) },
 ];
 
 /** Bridge crossings, [lat,lng] segments. Defaults are approximate; /layers supplies OSM bridges. */
@@ -77,11 +78,11 @@ export interface Bridge {
 }
 
 export const BRIDGES: Bridge[] = [
-  { id: 'br-sambhaji', name: 'Sambhaji (Lakdi Pul) Bridge (SIMULATED)', geometry: [[18.5122, 73.8456], [18.5152, 73.8456]] },
-  { id: 'br-shivaji', name: 'Shivaji Bridge (SIMULATED)', geometry: [[18.5172, 73.8556], [18.5202, 73.8556]] },
-  { id: 'br-sangam', name: 'Sangam Bridge (SIMULATED)', geometry: [[18.5275, 73.8700], [18.5305, 73.8700]] },
-  { id: 'br-holkar', name: 'Holkar Bridge (SIMULATED)', geometry: [[18.5345, 73.8760], [18.5375, 73.8760]] },
-  { id: 'br-vitthalwadi', name: 'Vitthalwadi Bridge (SIMULATED)', geometry: [[18.4935, 73.8300], [18.4965, 73.8300]] },
+  { id: 'br-sambhaji', name: 'Sambhaji (Lakdi Pul) Bridge', geometry: [[18.5122, 73.8456], [18.5152, 73.8456]] },
+  { id: 'br-shivaji', name: 'Shivaji Bridge', geometry: [[18.5172, 73.8556], [18.5202, 73.8556]] },
+  { id: 'br-sangam', name: 'Sangam Bridge', geometry: [[18.5275, 73.8700], [18.5305, 73.8700]] },
+  { id: 'br-holkar', name: 'Holkar Bridge', geometry: [[18.5345, 73.8760], [18.5375, 73.8760]] },
+  { id: 'br-vitthalwadi', name: 'Vitthalwadi Bridge', geometry: [[18.4935, 73.8300], [18.4965, 73.8300]] },
 ];
 
 export function centroid(ring: [number, number][]): [number, number] {
@@ -205,11 +206,11 @@ export async function loadCity(city = requestedCity(), timeoutMs = defaultTimeou
     if (seq !== loadSeq) return { ok: false, error: 'Superseded by a newer city request.' };
 
     const hospitals = (d.hospitals ?? []).filter((h): h is Hospital => !!h.id && !!h.name && validPt(h.lat, h.lng) && isNum(h.beds))
-      .map((h) => ({ ...h, specialties: Array.isArray(h.specialties) ? h.specialties : [] }));
+      .map((h) => ({ ...h, name: clean(h.name), specialties: Array.isArray(h.specialties) ? h.specialties : [] }));
     const depots = (d.depots ?? []).filter((x): x is Depot => !!x.id && !!x.name && validPt(x.lat, x.lng))
-      .map((x) => ({ ...x, stock: x.stock ?? {} }));
+      .map((x) => ({ ...x, name: clean(x.name), stock: x.stock ?? {} }));
     const zones = (d.flood_zones ?? []).filter((z) => Array.isArray(z.ring) && z.ring.length >= 4 && z.ring.every((p) => validPt(p[0], p[1])))
-      .map((z, i) => ({ id: z.id ?? `flood-${i + 1}`, name: z.name ?? `Flood zone ${i + 1} (SIMULATED)`, reason: z.reason ?? 'Flooding', ring: z.ring! }));
+      .map((z, i) => ({ id: z.id ?? `flood-${i + 1}`, name: clean(z.name) ?? `Flood zone ${i + 1}`, reason: z.reason ?? 'Flooding', ring: z.ring! }));
     const bridges = (d.bridges ?? []).filter((b): b is Bridge => !!b.id && !!b.name && Array.isArray(b.geometry) && b.geometry.length >= 2 && b.geometry.every((p) => validPt(p[0], p[1])));
 
     // Hospitals are the anchor: without them keep the current layers entirely so map and agents stay consistent.
@@ -227,7 +228,7 @@ export async function loadCity(city = requestedCity(), timeoutMs = defaultTimeou
     }
     const b = d.city?.bbox;
     CITY.bbox = Array.isArray(b) && b.length === 4 && b.every(isNum) ? b : null;
-    if (d.city?.name) CITY.name = d.city.name;
+    if (d.city?.name) CITY.name = clean(d.city.name);
     if (switching) { layersVersion++; listeners.forEach((fn) => fn()); }
     return { ok: true };
   } catch (e) {

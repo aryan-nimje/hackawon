@@ -33,9 +33,22 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   }
 }
 
+/** 'Mumbai City District' -> 'Mumbai City'. Same rule as the backend (`clean_city_name`); 'Kansas City' is kept. */
+export function cleanCityName(name: string): string {
+  let n = name.trim();
+  const suffix = /\s+(district|division|taluka|taluk|tehsil|tahsil|subdivision|metropolitan region|municipal corporation)$/i;
+  for (;;) {
+    const m = n.replace(suffix, '').trim();
+    if (m === n || !m) return n;
+    n = m;
+  }
+}
+
 /**
  * Name of the city around a point (English), or null. Used when the map settles outside the loaded city.
  * Nominatim usage policy: one request per settled map move, never while dragging.
+ * A real city/town/village is preferred; a district or county is only a last resort (and is cleaned), because
+ * 'Mumbai City District' is an administrative area that OpenStreetMap cannot serve as a city.
  */
 export async function cityNameAt(lat: number, lng: number): Promise<string | null> {
   try {
@@ -46,7 +59,8 @@ export async function cityNameAt(lat: number, lng: number): Promise<string | nul
     if (!res.ok) return null;
     const a = ((await res.json()) as { address?: Record<string, string> }).address;
     if (!a) return null;
-    return a.city || a.town || a.municipality || a.city_district || a.state_district || a.county || null;
+    const name = a.city || a.town || a.municipality || a.village || a.city_district || a.state_district || a.county;
+    return name ? cleanCityName(name) : null;
   } catch {
     return null;
   }

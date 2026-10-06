@@ -6,7 +6,7 @@ export interface Preset {
   name: string;
   regions: { type: HazardType; center: [number, number]; radius_m: number; severity: 'low' | 'medium' | 'high' | 'critical'; growing: boolean }[];
   incidents: Pick<Incident, 'text' | 'location' | 'lat' | 'lng' | 'need_type' | 'urgency'>[];
-  roads: { latlng: [number, number]; state: 'blocked' | 'flooded' }[];
+  roads: { latlng: [number, number] }[];
   bridges: string[];
 }
 
@@ -29,7 +29,7 @@ export function makePresets(): Preset[] {
         { text: 'Elderly resident needs insulin, cannot leave home', location: 'Central (sim)', lat: c[0] - 0.0194, lng: c[1] - 0.0120, need_type: 'medical', urgency: 'high' },
         { text: 'Shelter running out of drinking water', location: 'East side (sim)', lat: c[0] - 0.0124, lng: c[1] + 0.0420, need_type: 'supplies', urgency: 'medium' },
       ],
-      roads: [{ latlng: at(c, [-0.0144, 0.0150]), state: 'flooded' }],
+      roads: [{ latlng: at(c, [-0.0144, 0.0150]) }],
       bridges: nearestBridgeIds(floodC[0], floodC[1], 1),
     },
     {
@@ -41,7 +41,7 @@ export function makePresets(): Preset[] {
         { text: 'Multiple injuries at street corner', location: 'Main road (sim)', lat: c[0] - 0.0004, lng: c[1] + 0.0078, need_type: 'medical', urgency: 'high' },
         { text: 'Gas smell reported near apartments', location: 'North (sim)', lat: c[0] + 0.0346, lng: c[1] - 0.0200, need_type: 'evacuation', urgency: 'high' },
       ],
-      roads: [{ latlng: at(c, [0.0021, -0.0010]), state: 'blocked' }],
+      roads: [{ latlng: at(c, [0.0021, -0.0010]) }],
       bridges: nearestBridgeIds(quakeC[0], quakeC[1], 1),
     },
   ];

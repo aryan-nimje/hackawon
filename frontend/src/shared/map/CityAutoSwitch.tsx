@@ -17,7 +17,7 @@ const outside = (lat: number, lng: number) => {
 /**
  * Lives inside the map. When the view settles on a spot outside the loaded city, finds which city it is
  * (Nominatim reverse) and loads its layers from the backend (which fetches + caches it on first use).
- * `enabled=false` (a simulation run is in progress) only tells the user why nothing switches.
+ * `enabled=false` (a run is in progress) only tells the user why nothing switches.
  */
 export function CityAutoSwitch({ enabled, onStatus }: { enabled: boolean; onStatus: (s: CityStatus) => void }) {
   const map = useMap();
@@ -34,7 +34,7 @@ export function CityAutoSwitch({ enabled, onStatus }: { enabled: boolean; onStat
     const c = map.getCenter();
     if (!outside(c.lat, c.lng)) return;
     if (!enabledRef.current) {
-      statusRef.current({ kind: 'info', text: 'Reset the simulation to switch city.' });
+      statusRef.current({ kind: 'info', text: 'The city is locked while a run is in progress.' });
       return;
     }
     const cell = `${c.lat.toFixed(1)},${c.lng.toFixed(1)}`;

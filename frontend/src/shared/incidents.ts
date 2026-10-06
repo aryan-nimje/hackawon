@@ -3,9 +3,10 @@ import type { CitizenReport, Incident, IncidentStatus, IncidentStatusEntry, Urge
 export function reportToIncident(r: CitizenReport): Incident {
   const s = r.submission;
   const need = s.need_type === 'supplies' ? 'supplies' : (s.need_type ?? 'rescue');
-  const urgency: Urgency = s.vulnerable.length || s.need_type === 'medical' ? 'high' : 'medium';
+  const urgency: Urgency = r.urgency ?? (s.vulnerable.length || s.need_type === 'medical' ? 'high' : 'medium');
   return {
-    id: `cit-${r.token.slice(5, 11)}`,
+    // Database reports use their backend incident id (`cr-<uuid>`), so the run's own copy of the same report wins the de-dupe.
+    id: r.token.startsWith('cr-') ? r.token : `cit-${r.token.slice(5, 11)}`,
     text: s.text, location: s.location_text || `${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`,
     lat: s.lat, lng: s.lng, need_type: need, urgency, source: 'citizen', timestamp: r.created_at,
     raw_metadata: { vulnerable: s.vulnerable, people: s.people_count }, verification: null,

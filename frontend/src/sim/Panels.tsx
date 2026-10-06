@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { HOSPITALS } from '../lib/layers';
 import { Badge, Button, Card, Chip, StepHeader } from '../shared/ui';
 import { hospitalView, occupancyColor } from '../shared/hospitalLoad';
-import type { HazardType, SimEvent, SimScore, WorldState, WorldVehicle } from '../shared/types';
+import { isTrackedIncident } from '../shared/incidents';
+import type { HazardType, Incident, SimEvent, SimScore, WorldState, WorldVehicle } from '../shared/types';
 import type { Tool, ToolOptions } from './tools/MapTools';
 import { makePresets } from './presets';
+import { errorText, type EvidenceAction, type EvidenceResult } from './useSimulation';
 
 export function fmtClock(s: number): string {
   const m = Math.floor(s / 60);
@@ -15,7 +18,7 @@ export function fmtClock(s: number): string {
 const SPEEDS = [1, 2, 5, 10];
 
 export function ScenarioControls(p: {
-  started: boolean; starting: boolean; running: boolean; speed: number; autoReplan: boolean; escalateAfterS: number;
+  started: boolean; starting: boolean; resetting?: boolean; running: boolean; speed: number; autoReplan: boolean; escalateAfterS: number;
   onStart: () => void; onTogglePlay: () => void; onReset: () => void; onSpeed: (s: number) => void;
   onAutoReplan: (v: boolean) => void; onEscalate: (s: number) => void; onPreset: (id: string) => void;
 }) {
@@ -24,13 +27,15 @@ export function ScenarioControls(p: {
       <StepHeader n={1} title="Scenario" />
       <div className="flex flex-wrap gap-2">
         {!p.started ? (
-          <Button variant="primary" disabled={p.starting} onClick={p.onStart}>{p.starting ? 'Starting…' : '▶ Start simulation'}</Button>
+          <Button variant="primary" disabled={p.starting || p.resetting} onClick={p.onStart}>{p.starting ? 'Starting…' : '▶ Start simulation'}</Button>
         ) : (
-          <>
-            <Button variant="primary" onClick={p.onTogglePlay}>{p.running ? '⏸ Pause' : '▶ Resume'}</Button>
-            <Button onClick={p.onReset}>↺ Reset</Button>
-          </>
+          <Button variant="primary" disabled={p.resetting} onClick={p.onTogglePlay}>{p.running ? '⏸ Pause' : '▶ Resume'}</Button>
         )}
+        {/* Always available: after a page refresh the backend may still hold the previous simulation's data. */}
+        <Button disabled={p.starting || p.resetting} onClick={p.onReset}
+          title="Removes everything this simulator created (incidents, evidence, plans). Real data is not touched.">
+          {p.resetting ? 'Resetting…' : '↺ Reset simulation'}
+        </Button>
       </div>
       <div className="mt-3">
         <span className="mb-1 block text-xs text-[#6b6b6b]">World speed</span>
@@ -72,11 +77,6 @@ export function ToolPalette({ tool, onTool, opts, onOpts }: { tool: Tool; onTool
       <StepHeader n={2} title="Map tools" />
       <div className="flex flex-wrap gap-1.5">{TOOLS.map((t) => <Chip key={t.id} active={tool === t.id} onClick={() => onTool(t.id)}>{t.label}</Chip>)}</div>
       <p className="mt-2 text-[11px] text-[#6b6b6b]">{hint} Press Esc to cancel.</p>
-      {tool === 'road' && (
-        <div className="mt-2 flex gap-1.5">
-          {(['blocked', 'flooded'] as const).map((s) => <Chip key={s} active={opts.roadState === s} onClick={() => onOpts({ ...opts, roadState: s })}>{s}</Chip>)}
-        </div>
-      )}
       {tool === 'region' && (
         <div className="mt-2 space-y-2">
           <div className="flex gap-1.5">{(['flood', 'fire', 'collapse'] as HazardType[]).map((h) => <Chip key={h} active={opts.hazard === h} onClick={() => onOpts({ ...opts, hazard: h })}>{h}</Chip>)}</div>
@@ -115,6 +115,63 @@ export function IncidentForm({ at, draft, onDraft, onSubmit, onCancel, busy = fa
   );
 }
 
+/* ───────── incident evidence controls (shown in the incident's map popup) ───────── */
+const BACKS: { action: Exclude<EvidenceAction, 'random'>; label: string }[] = [
+  { action: 'news', label: 'News evidence' },
+  { action: 'official_alert', label: 'Official alert' },
+  { action: 'weather', label: 'Meteorological evidence' },
+];
+const CONTRADICTS: { action: Exclude<EvidenceAction, 'random'>; label: string }[] = [
+  { action: 'all_clear', label: 'All clear / false alarm' },
+  { action: 'normal_conditions', label: 'Normal relevant conditions' },
+];
+const EVIDENCE_LABEL: Record<string, string> = Object.fromEntries([...BACKS, ...CONTRADICTS].map((x) => [x.action, x.label]));
+
+/**
+ * The three evidence options for ONE incident: backs it, contradicts it, or Randomise (the backend draws one of the
+ * two for this incident only). Rendered inside the incident's map popup, which already shows its current credibility
+ * (or "pending verification"). The backend builds the evidence from the incident and scores it like real evidence.
+ */
+export function IncidentEvidenceActions({ incident, started, onEvidence }: {
+  incident: Incident; started: boolean; onEvidence: (incidentId: string, action: EvidenceAction) => Promise<EvidenceResult>;
+}) {
+  const [busy, setBusy] = useState<EvidenceAction | null>(null);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);  // only the latest outcome, not a history
+  if (!isTrackedIncident(incident)) return null;
+
+  const run = async (action: EvidenceAction) => {
+    if (busy) return;
+    setBusy(action);
+    try {
+      const r = await onEvidence(incident.id, action);
+      const what = EVIDENCE_LABEL[r.evidence] ?? r.evidence;
+      setNote({ ok: true, text: action === 'random' ? `Randomise: ${r.stance === 'supports' ? 'backs this incident' : 'contradicts this incident'} (${what})` : `${what} added` });
+    } catch (e) {
+      setNote({ ok: false, text: errorText(e, 'Could not add the evidence') });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const disabled = !started || busy != null;
+  const btn = (b: { action: Exclude<EvidenceAction, 'random'>; label: string }) => (
+    <Button key={b.action} small disabled={disabled} onClick={() => run(b.action)}>{busy === b.action ? '…' : b.label}</Button>
+  );
+  return (
+    <div className="mt-2 border-t border-[#e8e4dc] pt-2" style={{ minWidth: 220 }}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#15803d]">Backs this incident</p>
+      <div className="mt-1 flex flex-wrap gap-1">{BACKS.map(btn)}</div>
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[#b3261e]">Contradicts this incident</p>
+      <div className="mt-1 flex flex-wrap gap-1">{CONTRADICTS.map(btn)}</div>
+      <div className="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-[#d6d0c2] px-2 py-1.5">
+        <Button small variant="primary" disabled={disabled} onClick={() => run('random')}>{busy === 'random' ? '…' : '🎲 Randomise'}</Button>
+        <span className="text-[10px] text-[#6b6b6b]">Backs or contradicts, picked for this incident.</span>
+      </div>
+      {!started && <p className="mt-1 text-[10px] text-[#8c1d17]">Start the simulation first.</p>}
+      {note && <p className={`mt-1 text-[11px] ${note.ok ? 'text-[#1f4f52]' : 'text-[#8c1d17]'}`}>{note.text}</p>}
+    </div>
+  );
+}
+
 /* ───────── side panels ───────── */
 function Meter({ label, value, total, good }: { label: string; value: number; total: number; good: 'high' | 'low' }) {
   const pct = total ? Math.round((value / total) * 100) : 0;
@@ -148,7 +205,9 @@ export function ScoreCard({ score }: { score: SimScore }) {
   );
 }
 
-export function HospitalBeds({ world, diverted, onAdjust, onFull, onOffline }: {
+export function HospitalBeds({ world, diverted, onAdjust, onFull, onOffline, fill }: {
+  /** stretch to the height of the parent and scroll the list inside */
+  fill?: boolean;
   world: Pick<WorldState, 'beds' | 'hospital_status' | 'hospital_load'>;
   diverted: number;
   onAdjust: (id: string, delta: number) => void;
@@ -159,13 +218,13 @@ export function HospitalBeds({ world, diverted, onAdjust, onFull, onOffline }: {
   const occupied = views.reduce((n, { v }) => n + v.occupied, 0);
   const capacity = views.reduce((n, { v }) => n + v.capacity, 0);
   return (
-    <Card>
+    <Card className={fill ? 'flex min-h-0 flex-1 flex-col' : ''}>
       <StepHeader n={4} title="Hospital beds" right={diverted > 0 ? <Badge color="#7e22ce">{diverted} diverted</Badge> : undefined} />
       <p className="mb-1 text-[11px] text-[#6b6b6b]">
         Occupied beds over capacity ({occupied}/{capacity} city-wide). Every patient keeps a bed until their length of stay ends, then it is freed.
         Walk-in demand rises with disaster severity and near hazards. A full or offline hospital sends new patients to the nearest one with room; if none has room they overflow.
       </p>
-      <ul className="max-h-80 space-y-2.5 overflow-y-auto pr-1">
+      <ul className={`space-y-2.5 overflow-y-auto pr-1 ${fill ? "min-h-0 flex-1" : "max-h-80"}`}>
         {views.map(({ h, v }) => {
           const st = v.status;
           const l = v.load;

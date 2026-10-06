@@ -94,16 +94,21 @@ export async function get<T>(path: string): Promise<T> {
 }
 
 /** Subscribe a component to bus events; returns connection state. */
-export function useBus(subs: Record<string, Handler>): { connected: boolean } {
+export function useBus(subs: Record<string, Handler>, onOpen?: () => void): { connected: boolean } {
   const [connected, setConnected] = useState(false);
   const subsRef = useRef(subs);
   subsRef.current = subs;
+  const openRef = useRef(onOpen);
+  openRef.current = onOpen;
   const keys = Object.keys(subs).sort().join('|');
 
   useEffect(() => {
     const bus = new Bus();
     for (const k of keys.split('|')) bus.on(k, (d) => subsRef.current[k]?.(d));
-    bus.onStatus(setConnected);
+    bus.onStatus((up) => {
+      if (up) openRef.current?.();  // fires before the backend replays its state
+      setConnected(up);
+    });
     bus.connect();
     return () => bus.close();
   }, [keys]);

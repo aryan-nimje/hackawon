@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from services.bus import bus
+from services.store import run_store
 from state import RunState
 
 
@@ -34,6 +35,6 @@ def build_plan_payload(run: RunState) -> Dict[str, Any]:
 
 
 def broadcast_plan(run: RunState, event: str = "plan.updated") -> None:
-    if not bus.has_subscribers:
+    if not bus.has_subscribers or run_store.is_removed(run.id):
         return
     bus.publish(event, build_plan_payload(run))

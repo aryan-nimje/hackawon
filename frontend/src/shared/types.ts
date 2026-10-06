@@ -49,7 +49,22 @@ export type PositionSource = 'estimated' | 'reported';
 /** A tracked position older than this (ms) is flagged stale on maps and in the tracker. */
 export const STALE_AFTER_MS = 30_000;
 
+/** A patient moving between two hospitals after a diversion. Exists only while the ambulance is on the road. */
+export interface Transfer {
+  id: string;
+  incident_id: string;
+  from_name: string;
+  to_name: string;
+  lat: number;
+  lng: number;
+  /** road path still to drive, [lat, lng] points; the part already driven is dropped */
+  path: number[][];
+  eta_s: number;
+}
+
 export interface WorldVehicle extends SimTeam {
+  /** direction of travel in degrees clockwise from north; lets the Route Agent avoid U-turns */
+  heading?: number;
   failed?: 'stopped' | 'delayed' | null;
   needs_replan?: boolean;
   /** default 'reported' when absent */
@@ -122,6 +137,8 @@ export interface WorldState {
   affected_regions: AffectedRegion[];
   sim_incidents: Incident[];
   execution: ExecutionItem[];
+  /** diverted patients on the road between two hospitals */
+  transfers?: Transfer[];
   events: SimEvent[];
   beds: Record<string, number>;
   /** per-hospital availability; absent = all open */
@@ -174,6 +191,8 @@ export interface CitizenReport {
   token: string;
   created_at: string;
   submission: import('../types').ReportSubmission;
+  /** urgency picked by the citizen on the form (real reports from the database) */
+  urgency?: 'low' | 'medium' | 'high' | 'critical';
   /** run the backend attached this report to; absent = real report not tied to a sim run */
   run_id?: string | null;
 }

@@ -17,8 +17,8 @@ const STEPS: { status: ReportStatus; afterS: number; note: string }[] = [
   { status: 'received', afterS: 0, note: 'We have your report.' },
   { status: 'verifying', afterS: 6, note: 'A coordinator system is checking your report.' },
   { status: 'prioritized', afterS: 16, note: 'Your report has been ranked in the response queue.' },
-  { status: 'assigned', afterS: 30, note: 'A response team has been assigned (simulated).' },
-  { status: 'resolved', afterS: 55, note: 'Marked as resolved (simulated).' },
+  { status: 'assigned', afterS: 30, note: 'A response team has been assigned.' },
+  { status: 'resolved', afterS: 55, note: 'Marked as resolved.' },
 ];
 
 function read(): DemoReport[] {

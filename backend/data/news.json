@@ -1,38 +1,38 @@
 [
   {
     "id": "n001",
-    "headline": "[SIMULATED] Flash Flood Warning issued for Harris County",
-    "snippet": "National Weather Service warns of 4-6 inches of rain in the next 6 hours. Residents in low-lying areas urged to move to higher ground.",
+    "headline": "[SIMULATED] Flash flood alert issued for Pune district",
+    "snippet": "IMD warns of 100-150 mm of rain in the next 6 hours. Khadakwasla dam discharge increasing; residents along the Mutha river urged to move to higher ground.",
     "timestamp": "2026-10-02T08:00:00Z"
   },
   {
     "id": "n002",
-    "headline": "[SIMULATED] Buffalo Bayou overtopping near downtown Houston",
-    "snippet": "City officials report water levels rising rapidly along Buffalo Bayou. Several streets closed in the Theater District.",
+    "headline": "[SIMULATED] Mutha river overtopping near Deccan and Sangamwadi",
+    "snippet": "PMC officials report water levels rising rapidly along the Mutha river. Several roads closed near Lakdi Pul and Sangamwadi.",
     "timestamp": "2026-10-02T08:30:00Z"
   },
   {
     "id": "n003",
-    "headline": "[SIMULATED] METRO suspends rail service on Red Line",
-    "snippet": "Flooding at multiple stations forces suspension until further notice. Bus bridges operating on limited routes.",
+    "headline": "[SIMULATED] PMPML suspends bus services on low-lying routes",
+    "snippet": "Waterlogging at multiple stops forces suspension of services on Sinhagad Road and Deccan routes until further notice.",
     "timestamp": "2026-10-02T09:00:00Z"
   },
   {
     "id": "n004",
-    "headline": "[SIMULATED] Red Cross opens shelters at George R. Brown Convention Center",
-    "snippet": "Two emergency shelters now accepting evacuees. Bring medications and identification.",
+    "headline": "[SIMULATED] PMC opens relief shelters at municipal schools",
+    "snippet": "Emergency shelters now accepting evacuees in Kothrud and Shivajinagar. Bring medications and identification.",
     "timestamp": "2026-10-02T09:15:00Z"
   },
   {
     "id": "n005",
-    "headline": "[SIMULATED] Houston hospitals on emergency footing",
-    "snippet": "Major medical centers report surge in flood-related injuries. Non-critical procedures postponed.",
+    "headline": "[SIMULATED] Pune hospitals on emergency footing",
+    "snippet": "Major hospitals including Sassoon and Ruby Hall report a surge in flood-related injuries. Non-critical procedures postponed.",
     "timestamp": "2026-10-02T09:45:00Z"
   },
   {
     "id": "n006",
-    "headline": "[SIMULATED] I-45 North flooded near North Loop — avoid area",
-    "snippet": "TxDOT confirms multiple lanes underwater. Rescue crews deploying high-water vehicles.",
+    "headline": "[SIMULATED] Sinhagad Road underpass flooded - avoid area",
+    "snippet": "Pune Traffic Police confirm multiple lanes underwater near Vitthalwadi. Rescue crews deploying high-water vehicles.",
     "timestamp": "2026-10-02T10:00:00Z"
   }
 ]

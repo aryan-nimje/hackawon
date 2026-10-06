@@ -9,6 +9,13 @@ from services.store import run_store
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
+@router.get("/active")
+async def get_active_run():
+    """The run every client should follow (set when a scenario starts)."""
+    run = run_store.get_active_run()
+    return {"run_id": run.id if run else None, "status": run.status.value if run else None, "city": run.city if run else None}
+
+
 @router.get("/{run_id}")
 async def get_run(run_id: str):
     run = run_store.get_run(run_id)

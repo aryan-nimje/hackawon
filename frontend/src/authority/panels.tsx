@@ -1,30 +1,104 @@
-import { useState } from 'react';
-import { HOSPITALS } from '../lib/layers';
+import { useEffect, useState } from 'react';
+import { api } from '../api/client';
+import { CITY, HOSPITALS } from '../lib/layers';
 import { hospitalView, occupancyColor } from '../shared/hospitalLoad';
 import { Badge, Button, Card, Chip, StepHeader, URGENCY_COLOR } from '../shared/ui';
 import { incidentOpacity, incidentStatusOf } from '../shared/incidents';
 import { useNow } from '../shared/useNow';
 import { STALE_AFTER_MS } from '../shared/types';
+import type { Signal } from '../types';
+import { clean } from '../shared/clean';
 import type { ActivityEvent, AlertDraft, Disruption, ExecutionItem, Incident, IncidentStatusEntry, PlanItem, ReplanAction, ResponsePlan, RouteInfo, WorldState } from '../shared/types';
 
-/* ───────── Weather ───────── */
-/** Latest weather alert from the incident stream: rainfall reading and whether it is live or simulated. */
-export function WeatherCard({ incidents }: { incidents: Incident[] }) {
-  const w = incidents.find((i) => i.source === 'weather');
-  if (!w) return null;
-  const meta = w.raw_metadata ?? {};
-  const precip = typeof meta.precipitation_mm === 'number' ? meta.precipitation_mm : null;
-  const simulated = meta.mock === true;
+/* ───────── External alerts (live signals) ───────── */
+const SEVERITY_COLOR: Record<string, string> = { extreme: '#b3261e', severe: '#d97706', moderate: '#b45309', minor: '#6b6b6b', unknown: '#6b6b6b' };
+const REFRESH_MS = 30_000;
+
+/**
+ * Active external evidence the backend has read (SACHET alerts, Open-Meteo conditions, GDELT news), newest first.
+ * Read-only and independent of any run: it shows what the outside world is reporting right now. These signals
+ * back or contradict citizen reports; they are not incidents themselves.
+ */
+/** Active external signals, refreshed every 30 s and again (debounced) whenever `refreshKey` changes. */
+export function useSignals(refreshKey: unknown): { signals: Signal[] | null; error: boolean } {
+  const [signals, setSignals] = useState<Signal[] | null>(null);
+  const [error, setError] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), REFRESH_MS); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        // this city's alerts when its layers are cached on the backend, otherwise everything active
+        const list = await api.getSignals({ city: CITY.slug, activeOnly: true }).catch(() => api.getSignals({ activeOnly: true }));
+        if (alive) { setSignals(list); setError(false); }
+      } catch {
+        if (alive) setError(true);
+      }
+    }, 800);
+    return () => { alive = false; clearTimeout(t); };
+  }, [refreshKey, tick]);
+  return { signals, error };
+}
+
+type ExtCat = 'alert' | 'weather' | 'news';
+interface ExtItem { id: string; cat: ExtCat; title: string; detail?: string; area?: string; url?: string; level: string; color: string; ts: string; stance?: 'supports' | 'contradicts' }
+const CAT_LABEL: Record<ExtCat, string> = { alert: 'Official alert', weather: 'Weather', news: 'News' };
+const CAT_OF_SIGNAL: Record<string, ExtCat> = { official_alert: 'alert', weather: 'weather', news: 'news' };
+
+/** One normalized list for everything that comes from outside: official alerts, weather and news, whether it arrived as a
+ *  signal or as an incident. Each item appears once. */
+function externalItems(signals: Signal[] | null | undefined, incidents: Incident[], simulationRunning: boolean): ExtItem[] {
+  const out: ExtItem[] = (signals ?? []).map((s) => ({
+    id: s.id, cat: CAT_OF_SIGNAL[s.kind] ?? 'alert', title: clean(s.title), area: s.area || undefined, url: s.source_url || undefined,
+    level: s.severity, color: SEVERITY_COLOR[s.severity] ?? '#6b6b6b', ts: s.issued_at ?? s.fetched_at,
+    stance: s.metadata?.stance === 'contradicts' || s.metadata?.stance === 'supports' ? s.metadata.stance : undefined,
+  }));
+  for (const i of incidents) {
+    if (i.source === 'weather') {
+      const mm = i.raw_metadata?.precipitation_mm;
+      out.push({ id: i.id, cat: 'weather', title: clean(i.text), detail: typeof mm === 'number' ? `${mm} mm` : undefined, area: i.location, level: i.urgency, color: URGENCY_COLOR[i.urgency], ts: i.timestamp });
+    } else if (i.source === 'news' && (simulationRunning || !i.id.startsWith('news-'))) {
+      out.push({ id: i.id, cat: 'news', title: clean(i.text), area: i.location, level: i.urgency, color: URGENCY_COLOR[i.urgency], ts: i.timestamp });
+    }
+  }
+  return out.sort((a, b) => b.ts.localeCompare(a.ts));
+}
+
+export function ExternalFeed({ signals, error, incidents, simulationRunning = false }: {
+  signals: Signal[] | null; error: boolean; incidents: Incident[]; simulationRunning?: boolean;
+}) {
+  const [cat, setCat] = useState<'all' | ExtCat>('all');
+  const all = externalItems(signals, incidents, simulationRunning);
+  const count = (c: ExtCat) => all.filter((x) => x.cat === c).length;
+  const shown = all.filter((x) => cat === 'all' || x.cat === cat).slice(0, 40);
   return (
-    <Card className="!p-3">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-bold">Weather</span>
-        <Badge color={URGENCY_COLOR[w.urgency]}>{w.urgency}</Badge>
-        <Badge>{simulated ? 'simulated' : 'live reading'}</Badge>
-        {precip !== null && <span className="ml-auto font-mono text-xs">{precip} mm</span>}
+    <Card className="flex max-h-[42%] min-h-[9rem] shrink-0 flex-col !p-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-xs font-bold">External data</span>
+        <Badge>{signals || all.length ? `${all.length} active` : '…'}</Badge>
       </div>
-      <p className="text-[11px] leading-snug text-[#555]">{w.text.replace('[SIMULATED WEATHER ALERT] ', '')}</p>
-      <p className="mt-1 text-[10px] text-[#6b6b6b]">{w.location}</p>
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        <Chip active={cat === 'all'} onClick={() => setCat('all')}>All</Chip>
+        {(['alert', 'weather', 'news'] as const).map((c) => <Chip key={c} active={cat === c} onClick={() => setCat(c)}>{CAT_LABEL[c]} ({count(c)})</Chip>)}
+      </div>
+      {error && <p className="text-[11px] text-[#8c1d17]">Could not load external data. Retrying.</p>}
+      {shown.length === 0 && !error && <p className="text-[11px] text-[#6b6b6b]">No active alerts, weather warnings or hazard news right now.</p>}
+      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+        {shown.map((x) => (
+          <li key={x.id} className="rounded-lg bg-[#faf8f4] px-2 py-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge color={x.color}>{x.level}</Badge>
+              <span className="text-[10px] text-[#6b6b6b]">{CAT_LABEL[x.cat]}</span>
+              {x.stance && <Badge color={x.stance === 'contradicts' ? '#b3261e' : '#15803d'}>{x.stance === 'contradicts' ? 'contradicts' : 'backs'}</Badge>}
+              {x.detail && <span className="ml-auto font-mono text-[10px] text-[#555]">{x.detail}</span>}
+            </div>
+            <p className="mt-0.5 text-[11px] leading-snug">{x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="underline">{x.title}</a> : x.title}</p>
+            {x.area && <p className="text-[10px] text-[#6b6b6b]">{x.area}</p>}
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
@@ -37,22 +111,16 @@ export function LiveFeed({ incidents, escalated, selectedId, onSelect, incidentS
   /** lifecycle per incident id (from the sim world); resolved / expired items fade out of the feed */
   incidentStatus?: Record<string, IncidentStatusEntry>; simTimeS?: number;
 }) {
-  const [tab, setTab] = useState<'citizen' | 'stream'>('citizen');
   const [urg, setUrg] = useState<(typeof URG)[number]>('all');
-  const visible = incidents.filter((i) => incidentOpacity(incidentStatus?.[i.id], simTimeS) > 0);
-  const citizen = visible.filter((i) => i.source === 'citizen');
-  const stream = visible.filter((i) => i.source !== 'citizen');
-  const list = (tab === 'citizen' ? citizen : stream).filter((i) => urg === 'all' || i.urgency === urg);
+  // Weather and news are external data: they live in the External data panel, not here.
+  const visible = incidents.filter((i) => i.source !== 'weather' && i.source !== 'news' && incidentOpacity(incidentStatus?.[i.id], simTimeS) > 0);
+  const list = visible.filter((i) => urg === 'all' || i.urgency === urg);
   const order = { critical: 0, high: 1, medium: 2, low: 3 } as const;
   list.sort((a, b) => order[a.urgency] - order[b.urgency] || b.timestamp.localeCompare(a.timestamp));
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <StepHeader n={1} title="Live feed" />
-      <div className="mb-2 flex gap-1.5">
-        <Chip active={tab === 'citizen'} onClick={() => setTab('citizen')}>Citizen reports ({citizen.length})</Chip>
-        <Chip active={tab === 'stream'} onClick={() => setTab('stream')}>Incident stream ({stream.length})</Chip>
-      </div>
+      <StepHeader n={1} title={`Reports (${visible.length})`} />
       <div className="mb-2 flex flex-wrap gap-1.5">
         {URG.map((u) => <Chip key={u} active={urg === u} onClick={() => setUrg(u)} tone={u === 'all' ? undefined : URGENCY_COLOR[u]}>{u}</Chip>)}
       </div>
@@ -230,7 +298,7 @@ export function ExecutionTracker({ items, disruptions, worldTs, onReplan }: {
           })}
         </ul>
         <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
-          <h3 className="text-xs font-semibold text-[#8c1d17]">Field problems reported by simulation</h3>
+          <h3 className="text-xs font-semibold text-[#8c1d17]">Field problems reported</h3>
           {problems.length === 0 && active.length === 0 && <p className="text-xs text-[#6b6b6b]">No problems reported.</p>}
           {problems.map((it) => (
             <div key={it.item_id} className="rounded-xl border border-[#f0c4bf] bg-[#fbe9e7] p-2.5 text-xs text-[#8c1d17]">
