@@ -2,10 +2,8 @@ require('dotenv').config();
 const express = require('express'), path = require('path'), { Pool } = require('pg');
 const url = process.env.DATABASE_URL;
 if (!url || url.startsWith('YOUR_')) console.warn('⚠  Set DATABASE_URL in .env (see .env.example)');
-const pool = new Pool({ connectionString: url && url.replace(/^"|"$/g, '').trim(), max: 3, connectionTimeoutMillis: 10000 });
-pool.on('error', e => console.error('[pg pool]', e.message));
+const pool = new Pool({ connectionString: url });
 const app = express();
-app.set('trust proxy', 1);
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/report', (_q, r) => r.sendFile(path.join(__dirname, 'public/report.html')));
@@ -159,8 +157,4 @@ app.get('/api/reports', async (_q, res) => {
   } catch (err) { console.error(err); res.status(500).json({ ok: false, message: 'Could not load reports.' }); }
 });
 
-// Locally: start a server. On Vercel: export the app and let Vercel invoke it as a serverless function.
-if (require.main === module) {
-  app.listen(process.env.PORT || 3000, () => console.log('Listening on http://localhost:' + (process.env.PORT || 3000) + '/report'));
-}
-module.exports = app;
+app.listen(process.env.PORT || 3000, () => console.log('Listening on http://localhost:' + (process.env.PORT || 3000) + '/report'));

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report an emergency</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#faf7f2;--card:#fff;--sand:#f3ede3;--line:#e4e0d8;--ink:#2b2f33;--mute:#5d646b;--teal:#2f6f73;--teal-d:#245659;--tealbg:#e6f0ef;--red:#b3261e;--redbg:#fdecea}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:1.9rem;margin:0 0 4px}.sub{color:var(--mute);margin:0 0 16px}
+.notice{background:var(--sand);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.95rem;margin-bottom:20px}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(40,30,10,.05)}
+h2{font-size:1.1rem;margin:0 0 14px;display:flex;gap:10px;align-items:center}
+h2 b{background:var(--teal);color:#fff;border-radius:50%;width:26px;height:26px;display:inline-grid;place-items:center;font-size:.85rem}
+label,.lbl{display:block;font-weight:600;margin:14px 0 6px}
+.hint{font-weight:400;color:var(--mute);font-size:.9rem}
+input[type=text],input[type=tel],textarea{width:100%;font:inherit;padding:12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+textarea{min-height:140px;resize:vertical}
+:focus-visible{outline:3px solid #7fb3b6;outline-offset:2px}
+button{font:inherit;cursor:pointer;min-height:48px}
+.btn{border:1.5px solid var(--teal);background:var(--teal);color:#fff;border-radius:10px;padding:0 18px;font-weight:600;transition:background .15s}
+.btn:hover{background:var(--teal-d)}.btn.ghost{background:#fff;color:var(--teal)}.btn.ghost:hover{background:var(--tealbg)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.row{display:flex;gap:8px}.row>input{flex:1}
+.or{text-align:center;color:var(--mute);margin:12px 0;font-size:.9rem}
+#map{height:280px;border-radius:12px;margin-top:14px;border:1px solid var(--line);z-index:0}
+.loc{margin-top:12px;padding:12px;border-radius:10px;background:var(--tealbg)}.loc small{color:var(--mute)}
+.opts{display:grid;gap:10px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:520px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
+.opt{position:relative}.opt input{position:absolute;opacity:0;inset:0;width:100%;height:100%;cursor:pointer;margin:0}
+.opt span{display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:center;font-weight:600;transition:all .15s}
+.opt input:checked+span{border-color:var(--teal);background:var(--tealbg);box-shadow:inset 0 0 0 1px var(--teal)}
+.opt input:checked+span::before{content:"✓";color:var(--teal)}
+.opt input:focus-visible+span{outline:3px solid #7fb3b6;outline-offset:2px}
+.opt.crit input:checked+span{border-color:var(--red);background:var(--redbg);color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+.opt.crit input:checked+span::before{color:var(--red)}.opt.crit span{border-color:#e7b9b5}
+.check{justify-content:flex-start!important;text-align:left}
+.stepper{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+.stepper button{width:52px;border:0;background:var(--sand);font-size:1.4rem}.stepper button:hover{background:var(--tealbg)}
+.stepper output{min-width:64px;text-align:center;font-weight:700;font-size:1.2rem}
+.count{text-align:right;color:var(--mute);font-size:.88rem}.count.over{color:var(--red);font-weight:700}
+.err{color:var(--red);font-size:.9rem;margin-top:4px;min-height:0}
+.banner{border-radius:10px;padding:12px;margin-top:12px;background:var(--sand);border:1px solid var(--line)}.banner.bad{background:var(--redbg);border-color:#e7b9b5;color:#7a1b15}
+.submit{width:100%;min-height:58px;font-size:1.1rem;background:var(--red);border-color:var(--red)}.submit:hover{background:#8f1e18}
+.foot{text-align:center;color:var(--mute);font-size:.9rem;margin-top:10px}
+.done{text-align:center;padding:40px 20px}.done h2{justify-content:center;font-size:1.5rem}.ref{font-family:ui-monospace,monospace;background:var(--sand);padding:6px 10px;border-radius:8px;word-break:break-all;display:inline-block}
+.hidden{display:none}
+.photo{border:1.5px dashed var(--line);border-radius:12px;padding:14px;background:var(--bg)}
+.photo-actions{display:flex;gap:8px;flex-wrap:wrap}
+.photo-actions .btn{flex:1 1 160px;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0;min-height:48px;overflow:hidden}
+.photo-actions .btn:focus-within{outline:3px solid #7fb3b6;outline-offset:2px}
+.photo-actions input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.photo-actions .btn.disabled{opacity:.6;pointer-events:none}
+@media (hover:hover) and (pointer:fine){#camBtn{display:none}}
+.pv{display:flex;gap:12px;align-items:center;margin-top:12px}
+.pv img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#fff}
+.pv .btn{min-height:40px;margin:6px 6px 0 0;padding:0 14px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style></head><body><main>
+<h1>Report an emergency</h1>
+<p class="sub">Tell us what is happening so response coordinators can help.</p>
+<div class="notice" role="note"><strong>If you are in immediate danger, call your local emergency number first.</strong></div>
+
+<form id="f" novalidate>
+<section aria-labelledby="h1s"><h2 id="h1s"><b>1</b>Where is help needed?</h2>
+  <button type="button" class="btn" id="geo" style="width:100%">📍 Use my current location</button>
+  <div id="geomsg" role="status" aria-live="polite"></div>
+  <div class="or">or</div>
+  <label for="addr" style="margin-top:0">Enter address or location</label>
+  <div class="row"><input type="text" id="addr" placeholder="1200 Main St, Downtown Houston" autocomplete="street-address"><button type="button" class="btn ghost" id="search">Search</button></div>
+  <div id="map" role="application" aria-label="Map. Tap to choose the location, or drag the marker."></div>
+  <p class="hint">Tap the map or drag the marker to fine-tune the location.</p>
+  <div class="loc" aria-live="polite"><strong>Location selected</strong><br><span id="locname">Not chosen yet</span></div>
+  <div class="err" id="e-location" role="alert"></div>
+  <fieldset style="border:0;padding:0;margin:14px 0 0"><legend class="lbl">Is this where help is needed?</legend>
+   <div class="opts g2">
+    <label class="opt"><input type="radio" name="here" value="yes" checked><span>Yes — I'm here</span></label>
+    <label class="opt"><input type="radio" name="here" value="no"><span>No — I'm reporting for someone else</span></label>
+   </div><p class="hint" id="herenote" style="margin:8px 0 0"></p></fieldset>
+  <p class="hint">🔒 Your location is shared only with emergency response coordinators.</p>
+</section>
+
+<section><h2><b>2</b>Add a photo</h2>
+  <div class="lbl" style="margin-top:0">📷 Take or upload a photo <span class="hint">Optional</span></div>
+  <div class="photo">
+    <div class="photo-actions">
+      <label class="btn ghost" id="camBtn"><input type="file" id="cam" accept="image/*" capture="environment" aria-label="Take a photo">📷 Take a photo</label>
+      <label class="btn ghost" id="upBtn"><input type="file" id="up" accept="image/*" aria-label="Upload an image">🖼️ Upload an image</label>
+    </div>
+    <p class="hint" style="margin:8px 0 0">The image will be analyzed to automatically describe the situation.</p>
+    <div class="pv hidden" id="pv"><img id="pvimg" alt="Preview of the selected photo">
+      <div><div id="pvst" role="status" aria-live="polite"></div>
+        <button type="button" class="btn ghost" id="rm">Remove photo</button><button type="button" class="btn ghost hidden" id="retry">Try again</button></div></div>
+    <div id="imgmsg" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<section><h2><b>3</b>What do you need?</h2>
+  <fieldset style="border:0;padding:0;margin:0"><legend class="sr" style="position:absolute;left:-9999px">Type of help</legend>
+  <div class="opts g3" id="needs"></div></fieldset><div class="err" id="e-need_type" role="alert"></div>
+  <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Urgency</legend>
+  <div class="opts g4" id="urg"></div></fieldset><div class="err" id="e-urgency" role="alert"></div>
+</section>
+
+<section><h2><b>4</b>Who needs extra care?</h2>
+  <div class="opts g2" id="vuln"></div>
+  <div class="lbl" id="pl">How many people need help?</div>
+  <div class="stepper" role="group" aria-labelledby="pl">
+    <button type="button" id="minus" aria-label="Decrease number of people">−</button>
+    <output id="pc" aria-live="polite">1</output>
+    <button type="button" id="plus" aria-label="Increase number of people">+</button>
+  </div>
+</section>
+
+<section><h2><b>5</b>What happened?</h2>
+  <div class="or">or describe it yourself — you can also edit or add to the generated text</div>
+  <label for="text" class="sr" style="position:absolute;left:-9999px">What happened?</label>
+  <textarea id="text" maxlength="500" aria-describedby="cnt" placeholder="Describe what is happening, how serious it is, and anything responders should know..."></textarea>
+  <div class="count" id="cnt">0 / 500 characters</div><div class="err" id="e-text" role="alert"></div>
+</section>
+
+<div id="formerr" class="banner bad hidden" role="alert"></div>
+<button class="btn submit" id="sub" type="submit">Submit emergency report</button>
+<p class="foot">Your exact location is shared only with response coordinators.</p>
+</form>
+
+<section id="done" class="done hidden" tabindex="-1">
+  <h2>✅ Report submitted</h2><p>Your report has been received by the response coordination team.</p>
+  <p>Reference ID<br><span class="ref" id="refid"></span></p>
+  <button class="btn ghost" id="again" type="button">Submit another report</button>
+</section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const NEEDS=[['rescue','🚨 Rescue'],['medical','🩺 Medical Help'],['supplies','📦 Supplies']];
+const URG=[['low','Low'],['moderate','Moderate'],['high','High'],['critical','Critical']];
+const VULN=[['children','Children'],['elderly','Elderly'],['limited_mobility','Disability / limited mobility'],['pregnant','Pregnant'],['medical_needs','Medical needs (insulin, oxygen, etc.)']];
+const opt=(type,name,v,label,cls='',on=false)=>`<label class="opt ${cls}"><input type="${type}" name="${name}" value="${v}"${on?' checked':''}><span class="${type==='checkbox'?'check':''}">${label}</span></label>`;
+$('needs').innerHTML=NEEDS.map(([v,l])=>opt('radio','need',v,l,'',v==='rescue')).join('');
+$('urg').innerHTML=URG.map(([v,l])=>opt('radio','urg',v,l,v==='critical'?'crit':'',v==='high')).join('');
+$('vuln').innerHTML=VULN.map(([v,l])=>opt('checkbox','vuln',v,l,'',v==='elderly')).join('');
+
+let state={lat:null,lng:null,location:''}, token=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2);
+const map=L.map('map').setView([29.7604,-95.3698],11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+let marker=null;
+function say(el,msg,bad){el.innerHTML=msg?`<div class="banner ${bad?'bad':''}">${msg}</div>`:''}
+async function rev(lat,lng){
+  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,{headers:{'Accept-Language':navigator.language}});
+    if(!r.ok)throw 0;const j=await r.json();return j.display_name||null}catch{return null}}
+async function setPoint(lat,lng,name,fly){
+  state.lat=lat;state.lng=lng;
+  if(!marker){marker=L.marker([lat,lng],{draggable:true}).addTo(map);
+    marker.on('dragend',()=>{const p=marker.getLatLng();setPoint(p.lat,p.lng)})}
+  else marker.setLatLng([lat,lng]);
+  if(fly)map.setView([lat,lng],16);
+  $('locname').textContent='Finding address…';
+  const n=name||await rev(lat,lng);
+  state.location=n||`Pinned location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+  $('locname').textContent=state.location;$('e-location').textContent='';
+  if(!name&&!n)say($('geomsg'),"We couldn't look up the address, but your pin is saved. You can also type an address above.");
+}
+map.on('click',e=>setPoint(e.latlng.lat,e.latlng.lng));
+$('geo').onclick=()=>{
+  if(!navigator.geolocation)return say($('geomsg'),'Your browser can’t share location. Please enter an address instead.',1);
+  say($('geomsg'),'Getting your location…');$('geo').disabled=true;
+  navigator.geolocation.getCurrentPosition(async p=>{
+    say($('geomsg'),'');await setPoint(p.coords.latitude,p.coords.longitude,null,true);$('geo').disabled=false},
+  err=>{$('geo').disabled=false;
+    say($('geomsg'),err.code===1?'Location permission was denied. No problem — please enter the address below or tap the map.':'We couldn’t detect your location. Please enter the address below or tap the map.',1)},
+  {enableHighAccuracy:true,timeout:15000});
+};
+async function doSearch(){
+  const q=$('addr').value.trim();if(!q)return say($('geomsg'),'Please type an address to search.',1);
+  say($('geomsg'),'Searching…');
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q));
+    if(!r.ok)throw 0;const j=await r.json();
+    if(!j.length)return say($('geomsg'),"We couldn't find that address. Try adding the city, or tap the map instead.",1);
+    say($('geomsg'),'');await setPoint(+j[0].lat,+j[0].lon,j[0].display_name,true)}
+  catch{say($('geomsg'),'Address search is unavailable right now. You can tap the map to choose your location.',1)}
+}
+$('search').onclick=doSearch;$('addr').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();doSearch()}};
+document.querySelectorAll('[name=here]').forEach(r=>r.onchange=()=>{$('herenote').textContent=r.value==='no'&&r.checked?'The location above should be where the person or incident you are reporting is.':''});
+
+let n=1;const setN=v=>{n=Math.max(1,Math.min(10000,v));$('pc').textContent=n};
+$('minus').onclick=()=>setN(n-1);$('plus').onclick=()=>setN(n+1);
+const updateCount=()=>{const l=$('text').value.length;$('cnt').textContent=l+' / 500 characters';$('cnt').classList.toggle('over',l>=500)};
+$('text').oninput=updateCount;
+
+/* ---- Photo -> description (analysis runs on our server; the image is never submitted with the report) ---- */
+const MAX_IN=25*1024*1024,MAX_DIM=1280,MAX_OUT=3.5*1024*1024;
+const img={blob:null,url:null,busy:false,ctl:null,seq:0,gen:''};
+const MSG={unsupported:'That file type isn’t supported. Please choose a photo (JPEG, PNG or WebP).',too_large:'That image is too large. Please choose a smaller image.',
+  rate_limited:'Too many photo analyses right now. Please wait a minute, or describe the situation manually.',empty:'We couldn’t get a description from this photo. You can describe the situation manually.'};
+const GENERIC="We couldn't analyze the image. You can describe the situation manually.";
+const fit=(s,n)=>{if(s.length<=n)return s;const c=s.slice(0,n);let e=-1,m;const re=/[.!?](?=\s|$)/g;while((m=re.exec(c)))e=m.index;
+  if(e>=n*.5)return c.slice(0,e+1);const sp=c.slice(0,n-1).lastIndexOf(' ');return(sp>0?c.slice(0,sp):c.slice(0,n-1)).replace(/[ ,;:]+$/,'')+'…'};
+function setBusy(b){img.busy=b;['cam','up'].forEach(i=>$(i).disabled=b);['camBtn','upBtn'].forEach(i=>$(i).classList.toggle('disabled',b))}
+const setStatus=(h)=>{$('pvst').innerHTML=h};
+function viaImg(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();
+  i.onload=()=>{URL.revokeObjectURL(u);ok(i)};i.onerror=()=>{URL.revokeObjectURL(u);no(new Error('decode'))};i.src=u})}
+const decode=f=>window.createImageBitmap?createImageBitmap(f).catch(()=>viaImg(f)):viaImg(f);
+async function shrink(f){ // decode -> downscale -> JPEG (also drops EXIF/GPS metadata)
+  const src=await decode(f),w0=src.naturalWidth||src.width,h0=src.naturalHeight||src.height;
+  if(!w0||!h0)throw new Error('decode');
+  const k=Math.min(1,MAX_DIM/Math.max(w0,h0)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w0*k));c.height=Math.max(1,Math.round(h0*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(src,0,0,c.width,c.height);if(src.close)src.close();
+  for(const q of [.82,.65,.5]){const b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b&&b.size<=MAX_OUT)return b}
+  throw new Error('big')}
+function clearImage(){
+  img.seq++;if(img.ctl)img.ctl.abort();img.ctl=null;setBusy(false);
+  if($('text').value===img.gen&&img.gen){$('text').value='';updateCount()} // only drop generated text the citizen hasn't edited
+  img.gen='';img.blob=null;if(img.url)URL.revokeObjectURL(img.url);img.url=null;
+  $('pv').classList.add('hidden');$('pvimg').removeAttribute('src');setStatus('');$('retry').classList.add('hidden');say($('imgmsg'),'')}
+function applyGenerated(t){
+  const ta=$('text'),cur=ta.value;let pre,post='';
+  const i=img.gen?cur.indexOf(img.gen):-1;
+  if(i>=0){pre=cur.slice(0,i);post=cur.slice(i+img.gen.length)}
+  else if(cur.trim()){pre=cur.replace(/\s+$/,'')+'\n'}else pre='';
+  const room=500-pre.length-post.length;
+  if(room<40&&t.length>room){say($('imgmsg'),'Your description is already close to the 500-character limit, so the photo description was not added.');return false}
+  t=fit(t,room);ta.value=pre+t+post;img.gen=t;updateCount();$('e-text').textContent='';return true}
+async function analyze(){
+  if(img.busy||!img.blob)return;
+  const my=++img.seq,ctl=new AbortController();img.ctl=ctl;
+  setBusy(true);say($('imgmsg'),'');$('retry').classList.add('hidden');setStatus('<span class="spin"></span>Analyzing image…');
+  const timer=setTimeout(()=>ctl.abort(),35000);
+  try{
+    const r=await fetch('/api/analyze-image',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:img.blob,signal:ctl.signal});
+    const j=await r.json().catch(()=>({}));
+    if(my!==img.seq)return;
+    if(r.ok&&j.ok&&typeof j.text==='string'&&j.text.trim()){setStatus('');if(applyGenerated(j.text.trim()))say($('imgmsg'),'✓ Description added below. Please review it and add anything responders should know.')}
+    else{setStatus('');say($('imgmsg'),MSG[j.code]||GENERIC,1);if(j.code!=='unsupported'&&j.code!=='too_large')$('retry').classList.remove('hidden')}
+  }catch{
+    if(my!==img.seq)return;
+    setStatus('');say($('imgmsg'),GENERIC,1);$('retry').classList.remove('hidden')
+  }finally{clearTimeout(timer);if(my===img.seq){setBusy(false);img.ctl=null}}
+}
+async function onPick(inp){
+  const f=inp.files&&inp.files[0];inp.value='';if(!f||img.busy)return;
+  say($('imgmsg'),'');
+  if((f.type&&!/^image\//.test(f.type))||/svg/i.test(f.type))return say($('imgmsg'),MSG.unsupported,1);
+  if(f.size>MAX_IN)return say($('imgmsg'),MSG.too_large,1);
+  let b;try{b=await shrink(f)}catch(e){return say($('imgmsg'),e.message==='big'?MSG.too_large:MSG.unsupported,1)}
+  clearImage(); // replacing a photo swaps out its earlier generated text
+  img.blob=b;img.url=URL.createObjectURL(b);$('pvimg').src=img.url;$('pv').classList.remove('hidden');
+  analyze();
+}
+$('cam').onchange=e=>onPick(e.target);$('up').onchange=e=>onPick(e.target);
+$('rm').onclick=clearImage;$('retry').onclick=analyze;
+
+const val=n=>document.querySelector(`[name=${n}]:checked`)?.value;
+function check(){
+  const e={};
+  if(state.lat==null)e.location='Please choose a location using the button, search, or map.';
+  if(!val('need'))e.need_type='Please choose what you need.';
+  if(!val('urg'))e.urgency='Please choose an urgency level.';
+  if(img.busy)e.text='Please wait for the photo analysis to finish, or remove the photo.';
+  else if(!$('text').value.trim())e.text=img.blob?'We couldn’t get a description from your photo. Please type a short description.':'Please add a photo or describe what is happening.';
+  const ph=$('phone').value.trim();
+  if(ph&&(!/^\+?[0-9 ()\-.]{7,20}$/.test(ph)))e.phone='Please enter a valid phone number, or leave it blank.';
+  return e;
+}
+$('f').onsubmit=async ev=>{
+  ev.preventDefault();if($('sub').disabled)return;
+  ['location','need_type','urgency','text','phone'].forEach(k=>$('e-'+k).textContent='');
+  $('formerr').classList.add('hidden');
+  const e=check();
+  if(Object.keys(e).length){for(const k in e)$('e-'+k).textContent=e[k];
+    const first=document.querySelector('.err:not(:empty)');first?.scrollIntoView({behavior:'smooth',block:'center'});return}
+  const metadata={people_count:n,vulnerable:[...document.querySelectorAll('[name=vuln]:checked')].map(c=>c.value),here:val('here')!=='no'};
+  if($('phone').value.trim())metadata.phone=$('phone').value.trim();
+  const body={text:$('text').value.trim(),location:state.location,lat:state.lat,lng:state.lng,need_type:val('need'),urgency:val('urg'),metadata,client_token:token};
+  $('sub').disabled=true;$('sub').textContent='Submitting…';
+  try{
+    const r=await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.ok){$('refid').textContent=j.report.id;$('f').classList.add('hidden');$('done').classList.remove('hidden');$('done').focus();return}
+    if(r.status===400&&j.errors){for(const k in j.errors){const el=$('e-'+k);if(el)el.textContent=j.errors[k]}
+      throw new Error('Please check the highlighted fields and try again.')}
+    throw new Error(j.message||"We couldn't submit your report right now. Please try again.");
+  }catch(err){
+    const m=err instanceof TypeError?"We couldn't reach the server. Check your connection and try again — your details are still here.":err.message;
+    $('formerr').textContent=m;$('formerr').classList.remove('hidden');
+    $('sub').disabled=false;$('sub').textContent='Submit emergency report';
+  }
+};
+$('again').onclick=()=>location.reload();
+</script></body></html>
